@@ -1,0 +1,2 @@
+node Coordinador.js
+pause
