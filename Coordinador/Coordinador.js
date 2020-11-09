@@ -2,6 +2,8 @@ var zmq = require('zeromq');
 
 // socket to talk to clients
 var repSocket = zmq.socket('rep');
+var reqSocket = zmq.socket('req');
+
 
 const ipCoordinador = `127.0.0.1`;
 const puertoCoordinador = 1234;
@@ -46,39 +48,61 @@ function getIdBrokerMenosTopicos() {
     return contadorTopicosPorBroker.indexOf(minCantTopicos);
 }
 
-
-function getRespuestaTopico(topico,isPub) {
-    if (!topicoIdBroker.hasOwnProperty(topico)) {
-        //nadie lo tiene, se lo asignamos a alguien
-        let idBrokerMenosTopicos = getIdBrokerMenosTopicos();
-        topicoIdBroker[topico] = idBrokerMenosTopicos;
-        contadorTopicosPorBroker[idBrokerMenosTopicos]++;// TODO PREGUNTAR peligro concurrencia
-    }
-
-
+//Envia respuesta al cliente del broker, del topico solicitado
+function asignarTopicoExistente(topico,isPub){
+    
     let idBroker = topicoIdBroker[topico];
     let ipPuertoBroker = brokerIpPuerto[idBroker];
 
 
     let respuesta = {
         ip: ipPuertoBroker.ip,
-        puerto: isPub         ? ipPuertoBroker.puertoPub : ipPuertoBroker.puertoSub,
+        puerto: isPub ? ipPuertoBroker.puertoPub : ipPuertoBroker.puertoSub,
         topico: topico
     }
 
-    return respuesta;
+    repSocket.send(JSON.stringify(respuesta));
+}
+
+function asignarNuevoTopico(topico,isPub){
+    let mensaje = {
+        accion: COD_ADD_TOPICO_BROKER,
+        topico: topico
+    }       
+    reqSocket.on('message',function(){ //Cuando el broker acepta la solicitud de creacion del topico
+       
+        let idBrokerMenosTopicos = getIdBrokerMenosTopicos();
+        topicoIdBroker[topico] = idBrokerMenosTopicos;
+        contadorTopicosPorBroker[idBrokerMenosTopicos]++;// TODO PREGUNTAR peligro concurrencia
+           
+        //nadie lo tiene, se lo asignamos a alguien
+        
+        //avisarle al topico que se le asigno (tiene que confirmar?)  
+        asignarTopicoExistente(topico,isPub);       
+    })
+    reqSocket.send(JSON.stringify(mensaje))
+}
+
+function asignarTopico(topico,isPub){
+    if (!topicoIdBroker.hasOwnProperty(topico)) {
+        asignarNuevoTopico(topico,isPub);
+    } else {
+        asignarTopicoExistente(topico,isPub);
+    }
 }
 
 repSocket.on('message', function (requestJSON) { //un cliente quiere saber donde estan 1 o 3 topicos
     let request = JSON.parse(requestJSON);
     switch (request.accion) {
         case COD_PUB: {
-            repSocket.send(JSON.stringify(getRespuestaTopico(request.topico,true)));
+            asignarTopico(request.topico, true);            
+            // repSocket.send(JSON.stringify(getRespuestaTopico(request.topico,true)));
             break;
         }
         case COD_ALTA_SUB: {
             //mandamos los 3 juntos xq una request admite una sola reply (es el protocolo de ZMQ)
             let mensaje = [getRespuestaTopico('heartbeat',false),getRespuestaTopico(request.topico,false),getRespuestaTopico('message/all',false)]; 
+            asignarTopico();
             repSocket.send(JSON.stringify(mensaje));
             break;
         }
