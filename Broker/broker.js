@@ -6,7 +6,7 @@ const brokerIp = `127.0.0.1`;
 const BROKER_PUB_PORT = 3000;
 const BROKER_SUB_PORT = 3001;
 
-const BROKER_REP_PORT = 3020;
+const BROKER_REP_PORT = 3002;
 
 //CLIENTE -> COORDINADOR
 const COD_PUB = 1; // Cliente publica un nuevo mensaje
@@ -23,16 +23,25 @@ const COD_GET_TOPICOS = 4; // Servidor solicita a todos los sus topicos
 
 const COD_BORRAR_MENSAJES = 6; // Servidor solicita a un broker que borre sus mensajes
 
-//SERVIDOR HTTP -> TODOS LOS BROKERS
+//SERVIDOR HTTP -> BROKER
 const COD_GET_MENSAJES_COLA = 5;// Servidor solicita a todos los brokers todos sus mensajes
-
 
 let listaTopicos = [];
 
 
+
+// TODO LIST:
+// - Agregar la cola de envio de mensajes de cada tópico que se maneja
+// - Gestionar la listaTopicos con las adiciones
+// - Validar los mensajes entrantes, que cumplan con las condiciones de la cola de mensajes, y que sea un tópico válido del broker. else droppearlos
+// - Hacer la subrutina que borre los mensajes que no cumplan con el tiempo que tienen que cumplir
+// - Hacer la subrutina que borre los mensajes que no cumplan con la ocupación que tienen que cumplir
+
+
+
 // definimos 2 sockets: el que escucha todos los mensajes entrantes (subSocket), y el que va a enviar los mensajes a destino (pubSocket)
 const subSocket = zmq.socket('xsub'),  // el broker escucha a todos los publisher
-			pubSocket = zmq.socket('xpub') // el broker le manda a todos los subscriber
+		pubSocket = zmq.socket('xpub') // el broker le manda a todos los subscriber
 
 const repSocket = zmq.socket('req');
 

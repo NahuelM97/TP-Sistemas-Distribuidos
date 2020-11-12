@@ -16,8 +16,8 @@ const NTP_IP = '127.0.0.1'
 const INTERVAL_NTP = 1000; // seconds
 const INTERVAL_PERIODO = 120000;
 const i = total = 10;
-let offsetHora;
-let offsetAvg;
+let offsetHora = 0;
+let offsetAvg = 0;
 
 const MESSAGE_TOPIC_PREFIX = 'message';
 const HEARTBEAT_TOPIC_NAME = 'heartbeat';
@@ -40,9 +40,11 @@ const COD_BORRAR_MENSAJES = 6; // Servidor solicita a un broker que borre sus me
 //SERVIDOR HTTP -> TODOS LOS BROKERS
 const COD_GET_MENSAJES_COLA = 5;// Servidor solicita a todos los brokers todos sus mensajes
 
-var arregloSockets = []; //almacena en formato clave valor nuestros brokers conectados
+var arregloSockets = {}; //almacena en formato clave(ipPuerto) valor(variable del socket) los sockets para cada broker
 var clientesOnline = {};
 let topicoIpPuertoPub = {};
+
+var pendingRequests = {};
 
 {// PP
     initClient();
@@ -53,22 +55,33 @@ function initClient() {
     reqSock.on("message", cbRespuestaCoordinador);
     reqSock.connect(`tcp://${coordinadorIP}:${coordinadorPuerto}`);
     var messageInicial = {
+        idPeticion: generateUUID(),
         accion: COD_ALTA_SUB,
         topico: `${MESSAGE_TOPIC_PREFIX}/${userId}`
     };
-
-    console.log(`Enviando: ${JSON.stringify(messageInicial)}`);
-    reqSock.send(JSON.stringify(messageInicial));
-
-
+    socketSendMessage(reqSock,messageInicial);
 
     var messageHeartbeatPub = {
+        idPeticion: generateUUID(),
         accion: COD_PUB,
         topico: HEARTBEAT_TOPIC_NAME
     }
 
-    console.log(`Enviando: ${JSON.stringify(messageHeartbeatPub)}`);
-    reqSock.send(JSON.stringify(messageHeartbeatPub));
+    socketSendMessage(reqSock,messageHeartbeatPub);
+}
+
+function socketSendMessage(socket, mensaje){
+    // Se guarda en pending requests el envío
+    if(mensaje != null && mensaje.idPeticion) // Compruebo que tenga idPeticion 
+    {
+        pendingRequests[mensaje.idPeticion] = mensaje;
+        console.log(`Se realiza envio: ${JSON.stringify(mensaje)}`);
+        socket.send(JSON.stringify(mensaje));
+    }
+    else
+    {
+        console.error('Mensaje sin idPeticion no pudo ser enviado');
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +96,8 @@ function enviarTiemposNTP(){
               t1: T1.toISOString(), 
           }
           client.write(JSON.stringify(mensaje));
-      } else {
+      } 
+      else {
       //Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
           clearInterval(idIntervalo);
           console.log('Delay promedio: ' + offsetAvg + 'ms');
@@ -135,17 +149,19 @@ function sincronizacionNTP(){
 function enviarMensaje(contenido,topico){
     if(topicoIpPuertoPub.hasOwnProperty(topico)){
         let mensaje = {
+            idPeticion: generateUUID(),
             emisor: userId,
             mensaje: contenido,
             fecha: getTimeNTP(),
         }
-        pubSock.send(JSON.stringify(mensaje));
+        socketSendMessage(pubSock,mensaje);
     } else {
         let mensaje = {
+            idPeticion: generateUUID(),
             accion: COD_PUB,
             topico: topico
         }
-        reqSock.send(JSON.stringify(mensaje));
+        socketSendMessage(reqSock,mensaje);
     }
 }
 //////////////////////////////////////////////////////////////////////////////////////
@@ -164,13 +180,20 @@ function getTimeNTP(){
     return new Date(dateObj).toISOString();    
 }
 
-function algoritmoNTP(){
+// TODO: Adaptar nuevo formato
+function procesarAltaTopicos(brokers){
+    brokers.forEach(broker => {
+        let ipPuerto = `${broker.ip}:${broker.puerto}`;
 
-}
-
-function asignarNuevoTopico(topico, ip, puerto){
-    let ipPuerto = `${ip}:${puerto}`
-    topicoIpPuertoPub[topico] = ipPuerto;
+        // Si no está en mis tópicos debo agregarlo
+        if(!topicoIpPuertoPub.hasOwnProperty(broker.topico))
+        {
+            topicoIpPuertoPub[broker.topico] = ipPuerto;
+            let socket = getSocketByURL(ipPuerto);
+            socket.subscribe(broker.topico);
+            socket.on('message', cbProcesaMensajeRecibido);
+        }
+    })
 }
 //El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
 
@@ -181,50 +204,38 @@ function cbRespuestaCoordinador(replyJSON) {
     let reply = JSON.parse(replyJSON);
     console.log("Received reply : [", reply, ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
 
-    //COD 1 o COD 2????
-    //Ya que 
-    //Respuesta:
-    // { 
-    // “topico”: “nombreTopico”,
-    // “ip”: “ip” ,   
-    // “puerto”: xx, 
-    // }
-    
-    
-    // switch (replyJSON.accion) {
-    //     case COD_PUB:
-    //         asignarNuevoTopico(broker.topico,broker.ip,broker.puerto);
-    //         break;
-    //     case COD_ALTA_SUB:
-            reply.forEach((broker) => {
-                let ipPuerto = `${broker.ip.toString()}:${broker.puerto.toString()}`;
-                asignarNuevoTopico(broker.topico,broker.ip,broker.puerto);
-                let socket = getSocketByURL(ipPuerto);
-                socket.subscribe(broker.topico.toString());
-                socket.on('message', cbMensaje);        
-            })
-        //     break;
-        // default:
-        //     console.error("CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
-        //     break;
-  
-
-
+    if(reply && reply.exito) {
+        switch (reply.accion) {
+            case COD_PUB:
+                procesarAltaTopicos(reply.resultados);
+                break;
+            case COD_ALTA_SUB:
+                procesarAltaTopicos(reply.resultados);
+                break;
+            default:
+                console.error("CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
+                break;
+        }
+    }
+    else {
+        console.error("Respuesta sin exito: " + reply.error.codigo + ' - ' + reply.error.mensaje);
+    }
 }
 
-function cbMensaje(topic, message) {
+// Llega un mensaje nuevo a un tópico al que estoy suscrito
+function cbProcesaMensajeRecibido(topic, message) {
     if (topic = HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
         //actualizo el tiempo de conexion de alguien
         clientesOnline[message.emisor] = message.fecha;
     }
     else {
-        console.log('Recibio topico:', topic.toString(), 'con mensaje:', message.toString());
+        console.log('Recibio mensaje de topico:', topic.toString(), ' - ', message.toString());
     }
 
 }
 
 
-
+// Obtiene el socket dado un ipPuerto
 function getSocketByURL(ipPuerto) {
     if (!arregloSockets.hasOwnProperty(ipPuerto)) { //con este broker no hable nunca, lo agrego a mi lista de brokers
         let nuevoSocket = zmq.socket('sub');
@@ -236,8 +247,11 @@ function getSocketByURL(ipPuerto) {
     return arregloSockets[ipPuerto];
 }
 
-
-
-
-
-
+// TO DO: Abstraer a global.js
+// Genera UUID a fin de ser utilizado como ID de mensaje.
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+}
