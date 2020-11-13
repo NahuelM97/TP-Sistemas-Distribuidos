@@ -3,6 +3,8 @@ var zmq = require('zeromq')
     // , subSock = zmq.socket('sub')
     , reqSock = zmq.socket('req');
 
+const globals = require('../Global/Globals');
+
 let userId = 'carlitos';
 let coordinadorIP = '127.0.0.1';
 let coordinadorPuerto = 1234;
@@ -22,23 +24,7 @@ let offsetAvg = 0;
 const MESSAGE_TOPIC_PREFIX = 'message';
 const HEARTBEAT_TOPIC_NAME = 'heartbeat';
 
-//CLIENTE -> COORDINADOR
-const COD_PUB = 1; // Cliente publica un nuevo mensaje
 
-const COD_ALTA_SUB = 2; // Cliente se suscribe a un tópico
-
-
-//COORDINADOR -> BROKER
-const COD_ADD_TOPICO_BROKER = 3;// Coordinador informa al broker un nuevo topico 
-
-
-//SERVIDOR HTTP -> BROKER
-const COD_GET_TOPICOS = 4; // Servidor solicita a todos los sus topicos 
-
-const COD_BORRAR_MENSAJES = 6; // Servidor solicita a un broker que borre sus mensajes
-
-//SERVIDOR HTTP -> TODOS LOS BROKERS
-const COD_GET_MENSAJES_COLA = 5;// Servidor solicita a todos los brokers todos sus mensajes
 
 var arregloSockets = {}; //almacena en formato clave(ipPuerto) valor(variable del socket) los sockets para cada broker
 var clientesOnline = {};
@@ -48,22 +34,22 @@ var pendingRequests = {};
 
 {// PP
     initClient();
-    initClientNTP();
+    //initClientNTP(); TODO descomentar esto
 }
 
 function initClient() {
     reqSock.on("message", cbRespuestaCoordinador);
     reqSock.connect(`tcp://${coordinadorIP}:${coordinadorPuerto}`);
     var messageInicial = {
-        idPeticion: generateUUID(),
-        accion: COD_ALTA_SUB,
+        idPeticion: globals.generateUUID(),
+        accion: globals.COD_ALTA_SUB,
         topico: `${MESSAGE_TOPIC_PREFIX}/${userId}`
     };
     socketSendMessage(reqSock,messageInicial);
 
     var messageHeartbeatPub = {
-        idPeticion: generateUUID(),
-        accion: COD_PUB,
+        idPeticion: globals.generateUUID(),
+        accion: globals.COD_PUB,
         topico: HEARTBEAT_TOPIC_NAME
     }
 
@@ -149,7 +135,7 @@ function sincronizacionNTP(){
 function enviarMensaje(contenido,topico){
     if(topicoIpPuertoPub.hasOwnProperty(topico)){
         let mensaje = {
-            idPeticion: generateUUID(),
+            idPeticion: globals.generateUUID(),
             emisor: userId,
             mensaje: contenido,
             fecha: getTimeNTP(),
@@ -157,8 +143,8 @@ function enviarMensaje(contenido,topico){
         socketSendMessage(pubSock,mensaje);
     } else {
         let mensaje = {
-            idPeticion: generateUUID(),
-            accion: COD_PUB,
+            idPeticion: globals.generateUUID(),
+            accion: globals.COD_PUB,
             topico: topico
         }
         socketSendMessage(reqSock,mensaje);
@@ -197,8 +183,8 @@ function procesarAltaTopicos(brokers){
 }
 //El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
 
-//Con COD1: Es porque quiero publicar en un topico por primera vez
-//Con COD2: Se ejecuta cuando se vuelve a conectar o se conecta por primera vez el cliente (triple msj)
+//Con globals.COD1: Es porque quiero publicar en un topico por primera vez
+//Con globals.COD2: Se ejecuta cuando se vuelve a conectar o se conecta por primera vez el cliente (triple msj)
 function cbRespuestaCoordinador(replyJSON) { 
     
     let reply = JSON.parse(replyJSON);
@@ -206,14 +192,14 @@ function cbRespuestaCoordinador(replyJSON) {
 
     if(reply && reply.exito) {
         switch (reply.accion) {
-            case COD_PUB:
+            case globals.COD_PUB:
                 procesarAltaTopicos(reply.resultados);
                 break;
-            case COD_ALTA_SUB:
+            case globals.COD_ALTA_SUB:
                 procesarAltaTopicos(reply.resultados);
                 break;
             default:
-                console.error("CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
+                console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
                 break;
         }
     }
@@ -247,11 +233,3 @@ function getSocketByURL(ipPuerto) {
     return arregloSockets[ipPuerto];
 }
 
-// TO DO: Abstraer a global.js
-// Genera UUID a fin de ser utilizado como ID de mensaje.
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-}
