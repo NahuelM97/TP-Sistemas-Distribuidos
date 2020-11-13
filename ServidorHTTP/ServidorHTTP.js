@@ -51,42 +51,53 @@ app.listen(port, () => {
 
 
 app.get('/broker/:brokerId/topics', (req, res) => {
-    
+
     let brokerId = req.params.brokerId;
 
     console.log(`recibi -> ${req.url}`)
 
-    if (typeof(brokerId) == 'number') {
-        //req con broker
-        let solicitudBroker ={ 
-            idPeticion:  generateUUID(),
-            accion: COD_GET_TOPICOS, 
-            topico: null,
-             
-        }
+    if (!isNaN(brokerId)) {
+        //req con broker DESCOMENTAR 60 a 76 para uso real
+        // let solicitudBroker ={ 
+        //     idPeticion:  generateUUID(),
+        //     accion: COD_GET_TOPICOS, 
+        //     topico: null,
 
-        let reqSock = zmq.socket('req');
-        reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
+        // }
 
-        reqSock.on('message',function(reply){
-            //La enviamos con el mismo formato que llega
-            res.send(reply);
-        });
+        // let reqSock = zmq.socket('req');
+        // reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
 
-        reqSock.send(solicitudBroker);
+        // reqSock.on('message',function(reply){
+        //     //La enviamos con el mismo formato que llega
+        //     res.send(reply);
+        // });
+
+        // reqSock.send(solicitudBroker);
+        res.header('Access-Control-Allow-Origin', '*');
+        res.send(JSON.stringify({
+            exito: true,
+            resultados: {
+                listaTopicos: ['topico1hola', 't2chau', 't3qonda']
+            },
+            // error: {
+            //     codigo: 1,
+            //     mensaje: 'error 1: paso la cosa mala numero 1'
+            // }
+        }));
     }
-    else{
+    else {
         let resp = {
             exito: false,
             error: {
-                cod: 1,
-                descripcion: "Operacion inexistente"
+                codigo: 1,
+                mensaje: "Operacion inexistente"
             }
         }
         res.send('Error: broker.')
 
     }
-        
+
 })
 
 
@@ -105,7 +116,7 @@ app.get('/broker/:brokerId/topics', (req, res) => {
 
 
 app.get('/broker/:brokerId/topics/:topic', (req, res) => {
-    
+
     let brokerId = req.params.brokerId;
     let topic = req.params.topic;
 
@@ -113,36 +124,49 @@ app.get('/broker/:brokerId/topics/:topic', (req, res) => {
 
 
     //TODO fijarse que topic sea valido
-    if (typeof(brokerId) == 'number') {
-        //req con broker
-        let solicitudBroker ={ 
-            idPeticion:  generateUUID(),
-            accion: COD_GET_MENSAJES_COLA, 
-            topico: topic,
-        }
-        
-        let reqSock = zmq.socket('req');
-        reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
+    if (!isNaN(brokerId)) {
+        //req con broker DESCOMENTAR DESDE ACA.
+        // let solicitudBroker = {
+        //     idPeticion: generateUUID(),
+        //     accion: COD_GET_MENSAJES_COLA,
+        //     topico: topic,
+        // }
 
-        reqSock.on('message',function(reply){
-            //La enviamos con el mismo formato que llega
-            res.send(reply);
-        });
+        // let reqSock = zmq.socket('req');
+        // reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
 
-        reqSock.send(solicitudBroker);
+        // reqSock.on('message', function (reply) {
+        //     //La enviamos con el mismo formato que llega
+        //     res.send(reply);
+        // });
+
+        // reqSock.send(solicitudBroker); HASTA ACA.
+        res.header('Access-Control-Allow-Origin', '*');//este y el de abajo son para debug
+        res.send(JSON.stringify({
+            exito: true,
+            resultados: {
+                mensajes: [{ emisor: 'pepe', mensaje: 'hola como va', fecha: '2020-12-12T11:22:33.000Z' },
+                { emisor: 'lucas', mensaje: 'chau', fecha: '1150-12-12T11:22:33.000Z' },
+                { emisor: 'daniel', mensaje: 'aaaaaaaaahhhhhhh', fecha: '1996-12-12T11:22:32.000Z' }]
+            },
+            // error: {
+            //     codigo: 1,
+            //     mensaje: 'error 1: paso la cosa mala numero 1'
+            // }
+        }));
     }
-    else{
+    else {
         let resp = {
             exito: false,
             error: {
-                cod: 1,
-                descripcion: "Operacion inexistente"
+                codigo: 1,
+                mensaje: "Operacion inexistente"
             }
         }
         res.send('Error: broker.')
 
     }
-        
+
 })
 
 //DELETE Mensajes en cola para ese topico en ese broker particular
@@ -154,7 +178,7 @@ app.get('/broker/:brokerId/topics/:topic', (req, res) => {
 //                    “mensaje”: “description”
 //                    }
 // } 
-app.delete('/broker/:brokerId/topics/:topic', (req, res) => { 
+app.delete('/broker/:brokerId/topics/:topic', (req, res) => {
     let brokerId = req.params.brokerId;
     let topic = req.params.topic;
 
@@ -162,30 +186,30 @@ app.delete('/broker/:brokerId/topics/:topic', (req, res) => {
 
 
     //TODO fijarse que topic sea valido
-    if (typeof(brokerId) == 'number') {
+    if (!isNaN(brokerId)) {
         //req con broker
-        let solicitudBroker ={ 
-            idPeticion:  generateUUID(),
-            accion: COD_BORRAR_MENSAJES, 
+        let solicitudBroker = {
+            idPeticion: generateUUID(),
+            accion: COD_BORRAR_MENSAJES,
             topico: topic,
         }
-        
+
         let reqSock = zmq.socket('req');
         reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
 
-        reqSock.on('message',function(reply){
+        reqSock.on('message', function (reply) {
             //La enviamos con el mismo formato que llega
             res.send(reply);
         });
 
         reqSock.send(solicitudBroker);
     }
-    else{
+    else {
         let resp = {
             exito: false,
             error: {
-                cod: 1,
-                descripcion: "Operacion inexistente"
+                codigo: 1,
+                mensaje: "Operacion inexistente"
             }
         }
         res.send('Error: broker.')
@@ -198,8 +222,8 @@ app.delete('/broker/:brokerId/topics/:topic', (req, res) => {
 // TO DO: Abstraer a global.js
 // Genera UUID a fin de ser utilizado como ID de mensaje.
 function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
     });
 }

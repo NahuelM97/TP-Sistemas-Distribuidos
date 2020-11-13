@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="ClienteHTTP.css">
+    <title>Cliente HTTP</title>
+</head>
+<!-- Cardoso, Lima, Mariño, Navarro -->
+
+<body>
+    <div>
+        <h1>Administracion HTTP de brokers</h1>
+        <div id="mostrarTopicos">
+            <h2>Elija un Broker</h2>
+            <select name="brokerId" id="selectBrokerId" size="7">
+                <option value="0" selected>Broker 1</option>
+                <option value="1">Broker 2</option>
+                <option value="2">Broker 3</option>
+                <option value="3">Broker 4</option>
+                <option value="4">Broker 5</option>
+            </select>
+            <button id="botonTopicos">Solicitar Topicos</button>
+
+            <div class="escondido" id="resultadoTopicos">
+                <h2>Elija un Topico</h2>
+                <select name="topicoId" id="selectTopicoId" size="10">
+                </select>
+                <button id="botonMensajes">Mostrar mensajes de topico</button>
+            </div>
+        </div>
+
+
+
+        <div class="escondido" id="mostrarMensajesTopico">
+
+            <ul id="ulResultadoMensajes">
+
+            </ul>
+        </div>
+        <div class="escondido" id="eliminarCola">
+            <button>Eliminar cola de mensajes</button>
+        </div>
+
+    </div>
+</body>
+<script src="ClienteHTTP.js"></script>
+
+</html>
