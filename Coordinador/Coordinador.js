@@ -1,6 +1,6 @@
 const { Console } = require('console');
 const { request } = require('http');
-const zmq = require('zeromq');
+const zmq = require('../zeromq/node_modules/zeromq');
 const { COD_ADD_TOPICO_BROKER, COD_ALTA_SUB, COD_PUB } = require('../Global/Globals');
 const globals = require('../Global/Globals');
 

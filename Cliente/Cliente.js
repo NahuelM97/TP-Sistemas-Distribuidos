@@ -1,4 +1,4 @@
-var zmq = require('zeromq')
+var zmq = require('../zeromq/node_modules/zeromq')
     , pubSock = zmq.socket('pub')
     // , subSock = zmq.socket('sub')
     , reqSock = zmq.socket('req');
