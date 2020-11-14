@@ -4,7 +4,7 @@
 //CLIENTE -> COORDINADOR
 const COD_PUB = 1; // Cliente publica un nuevo mensaje
 
-const COD_ALTA_SUB = 2; // Cliente se suscribe a un tópico
+const COD_ALTA_SUB = 2; // Cliente se suscribe a un tï¿½pico
 
 
 //COORDINADOR -> BROKER
@@ -38,27 +38,30 @@ const COD_ERROR_OPERACION_INEXISTENTE = 2
 // retorna una respuesta exitosa con los resultados especificados
 function generarRespuestaExitosa(accion,idPeticion,resultados) {
 
-	return new {
+	let respuesta = {
 		exito: true,
 		accion: accion,
 		idPeticion: idPeticion,
 		resultados: resultados
 	}
+	return respuesta; 
 }
 
 
 // retorna una respuesta no exitosa con el codigo de error y mensaje especificados
 function generarRespuestaNoExitosa(accion, idPeticion, codigoError, mensajeError) {
 
-	return new {
+	let respuesta = {
 		exito: false,
 		accion: accion,
 		idPeticion: idPeticion,
-		error: {
+		error: 
+		{
 			codigo: codigoError,
 			mensaje: mensajeError
 		}
 	}
+	return respuesta;
 }
 
 
