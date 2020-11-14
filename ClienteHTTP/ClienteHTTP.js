@@ -1,7 +1,6 @@
-document.getElementById('botonTopicos').addEventListener('click', cbGetTopicos);
 document.getElementById('botonMensajes').addEventListener('click', cbGetMensajes);
 
-function cbGetTopicos() {
+$("#botonTopicos").click(function(){
     //hacer un get al servidor
     let brokerId = document.getElementById('selectBrokerId').value;
     let url = `http://localhost:9123/broker/${brokerId}/topics`;
@@ -11,7 +10,15 @@ function cbGetTopicos() {
     XHR.open("GET", url);
     XHR.send();
 
-}
+
+    $("#resultadoTopicos").fadeIn();
+});
+
+$("#selectBrokerId").change(function(){
+
+    $("#resultadoTopicos").fadeOut();
+
+});
 
 function cbMostrarTopicos() {
     console.log(this.responseText);

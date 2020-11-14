@@ -4,47 +4,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./bootstrap/css/bootstrap.css">
     <link rel="stylesheet" href="ClienteHTTP.css">
     <title>Cliente HTTP</title>
 </head>
 <!-- Cardoso, Lima, Mariño, Navarro -->
 
 <body>
-    <div>
-        <h1>Administracion HTTP de brokers</h1>
-        <div id="mostrarTopicos">
-            <h2>Elija un Broker</h2>
-            <select name="brokerId" id="selectBrokerId" size="7">
-                <option value="0" selected>Broker 1</option>
-                <option value="1">Broker 2</option>
-                <option value="2">Broker 3</option>
-                <option value="3">Broker 4</option>
-                <option value="4">Broker 5</option>
-            </select>
-            <button id="botonTopicos">Solicitar Topicos</button>
+    <div class="container bg-dark text-white">
+        <div class="row mt-4">
+            <div class="col-12 text-center">
+                
+                <h1>Administracion HTTP de brokers</h1>
+                <div id="mostrarTopicos">
+                    <div class="row m-4">
+                        <div class="col">
+                            <h2>Elija un Broker</h2>
+                        </div>
+                    </div>
+                    <div class="row m-4">
+                        <div class="col">
+                    <select name="brokerId" id="selectBrokerId" class="form-control">
+                        <option value="0" selected>Broker 1</option>
+                        <option value="1">Broker 2</option>
+                        <option value="2">Broker 3</option>
+                        <option value="3">Broker 4</option>
+                        <option value="4">Broker 5</option>
+                    </select>
+                        </div>
+                    </div>
+                    <div class="row m-4">
+                        <div class="col">
+                            <button id="botonTopicos" class="btn btn-success">Solicitar Topicos</button>
+                        </div>
+                    </div>
 
-            <div class="escondido" id="resultadoTopicos">
-                <h2>Elija un Topico</h2>
-                <select name="topicoId" id="selectTopicoId" size="10">
-                </select>
-                <button id="botonMensajes">Mostrar mensajes de topico</button>
+                    <div class="" id="resultadoTopicos">
+                        <div class="row m-4">
+                            <div class="col">
+                                <h2>Elija un Topico</h2>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 offset-3 w-25">
+                                <select name="topicoId" id="selectTopicoId" size="10" class="form-control">
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col">
+                                <button id="botonMensajes" class="btn btn-primary">Mostrar mensajes de topico</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <div class="escondido" id="mostrarMensajesTopico">
+
+                    <ul id="ulResultadoMensajes">
+
+                    </ul>
+                </div>
+                <div class="escondido" id="eliminarCola">
+                    <button>Eliminar cola de mensajes</button>
+                </div>
+
             </div>
         </div>
-
-
-
-        <div class="escondido" id="mostrarMensajesTopico">
-
-            <ul id="ulResultadoMensajes">
-
-            </ul>
-        </div>
-        <div class="escondido" id="eliminarCola">
-            <button>Eliminar cola de mensajes</button>
-        </div>
-
+        <footer class="page-footer"></footer>
     </div>
 </body>
+
+<footer class="page-footer font-small blue pt-4 bg-secondary fixed-bottom">
+  
+    <div class="footer-copyright text-center py-3">© 2020 Grupo IV - Sistemas Distribuidos - Universidad Nacional de Mar Del Plata</div>
+  
+</footer>
+
+<script src="./jQuery/jquery-3.5.1.min.js"></script>
+<script src="./bootstrap/js/bootstrap.js"></script>
 <script src="ClienteHTTP.js"></script>
 
 </html>
