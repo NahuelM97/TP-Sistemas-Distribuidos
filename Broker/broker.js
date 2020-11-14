@@ -41,6 +41,9 @@ let colaMensajesPorTopico = {}; // key = topico, value = cola de mensajes ordena
 // - mantener el estado de conexion de los clientes escuchando el topico heartbeat
 // - cuando un cliente se suscribe por primera vez a un topico o se reconecta, hay que mandarle las colas de mensajes de message/<user> y el message/all a
 //   su message/<user> con el protocolo PUBSUB
+// - sincronizar reloj con NTP
+
+
 
 
 
