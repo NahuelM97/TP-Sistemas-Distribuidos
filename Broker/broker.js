@@ -1,5 +1,5 @@
 // broker.js
-const zmq = require('zeromq')
+const zmq = require('../zeromq/node_modules/zeromq');
 
 const globals = require('../Global/Globals');
 

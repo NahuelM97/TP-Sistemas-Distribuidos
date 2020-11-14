@@ -1,10 +1,11 @@
-var zmq = require('zeromq')
+var zmq = require('../zeromq/node_modules/zeromq')
     , pubSock = zmq.socket('pub')
     // , subSock = zmq.socket('sub')
     , reqSock = zmq.socket('req');
 
 const globals = require('../Global/Globals');
 
+//TODO LEER DE ALGUN LADO USERID
 let userId = 'carlitos';
 let coordinadorIP = '127.0.0.1';
 let coordinadorPuerto = 1234;
@@ -34,7 +35,7 @@ var pendingRequests = {};
 
 {// PP
     initClient();
-    //initClientNTP(); TODO descomentar esto
+    //initClientNTP();
 }
 
 function initClient() {
@@ -186,6 +187,9 @@ function procesarAltaTopicos(brokers){
 //Con globals.COD1: Es porque quiero publicar en un topico por primera vez
 //Con globals.COD2: Se ejecuta cuando se vuelve a conectar o se conecta por primera vez el cliente (triple msj)
 function cbRespuestaCoordinador(replyJSON) { 
+
+    
+    console.log('Recibi mensaje del coordinador');
     
     let reply = JSON.parse(replyJSON);
     console.log("Received reply : [", reply, ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
@@ -193,10 +197,10 @@ function cbRespuestaCoordinador(replyJSON) {
     if(reply && reply.exito) {
         switch (reply.accion) {
             case globals.COD_PUB:
-                procesarAltaTopicos(reply.resultados);
+                procesarAltaTopicos(reply.resultados.datosBroker);
                 break;
             case globals.COD_ALTA_SUB:
-                procesarAltaTopicos(reply.resultados);
+                procesarAltaTopicos(reply.resultados.datosBroker);
                 break;
             default:
                 console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
