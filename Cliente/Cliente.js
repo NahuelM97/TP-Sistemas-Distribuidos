@@ -5,20 +5,22 @@ var zmq = require('../zeromq/node_modules/zeromq')
 
 const globals = require('../Global/Globals');
 
+let config = require('./configCliente.json');
+
 //TODO LEER DE ALGUN LADO USERID
-let userId = 'carlitos';
-let coordinadorIP = '127.0.0.1';
-let coordinadorPuerto = 1234;
+let userId = config.userId;
+let coordinadorIP = config.coordinadorIP;
+let coordinadorPuerto = config.coordinadorPuerto;
 
 
 //SERVER NTP
 const net = require('net');
 
-const portNTP = 4444;
-const NTP_IP = '127.0.0.1'
-const INTERVAL_NTP = 1000; // seconds
-const INTERVAL_PERIODO = 120000;
-const i = total = 10;
+const portNTP = config.portNTP;
+const NTP_IP = config.ipNTP;
+const INTERVAL_NTP = 1000 * config.intervalNTP; // seconds 1
+const INTERVAL_PERIODO = 1000 * config.intervalPeriodo;  //seconds 120
+const i = total = config.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
 

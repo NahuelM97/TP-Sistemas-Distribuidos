@@ -8,9 +8,10 @@ const globals = require('../Global/Globals');
 var repSocket = zmq.socket('rep');
 var reqSocket = zmq.socket('req');
 
+let config = require('./configCoordinador.json');
 
-const ipCoordinador = `127.0.0.1`;
-const puertoCoordinador = 1234;
+const ipCoordinador = config.ipCoordinador;
+const puertoCoordinador = config.ipPuerto;
 
 
 //key: el topico
@@ -26,6 +27,8 @@ let brokerIpPuerto = [
     { ip: '127.0.0.1', puertoPub: 3003, puertoSub: 3004, puertoRep: 3005 }, // "id" 1
     { ip: '127.0.0.1', puertoPub: 3006, puertoSub: 3007, puertoRep: 3008 }  // "id" 2
 ];
+
+brokerIpPuerto = config.brokerIpPuerto;
 
 //TEST BROKERS
 // let brokerIpPuerto = [
@@ -226,7 +229,7 @@ function enviarDatosAlta(idPeticion){
     let resultados = { 
             datosBroker: [ 
                 {
-                    topico: 'message/all',
+                    topico: 'message/all', //TODO Poner en Global
                     ip:  brokerIpPuerto[topicoIdBroker['message/all']].ip,
                     puerto: brokerIpPuerto[topicoIdBroker['message/all']].puertoPub,
                 },

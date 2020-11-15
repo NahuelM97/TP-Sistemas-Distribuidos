@@ -3,18 +3,21 @@ const zmq = require('../zeromq/node_modules/zeromq');
 
 const globals = require('../Global/Globals');
 
+let config = require('./configBroker.json');
+console.log(config);
+
 // TODO - Sacar estos datos de un archivo JSON
-const brokerIp = `127.0.0.1`;
-const BROKER_PUB_PORT = 3000;
-const BROKER_SUB_PORT = 3001;
+const brokerIp = config.ip;
+const BROKER_PUB_PORT = config.pubPort;
+const BROKER_SUB_PORT = config.subPort;
 
-const BROKER_REP_PORT = 3002;
+const BROKER_REP_PORT = config.repPort;
 
-const MAX_MENSAJES_COLA = 15;
-const MAX_DIF_TIEMPO_MENSAJE = 300000; // en milisegundos
+const MAX_MENSAJES_COLA = config.maxMensajesCola;  //15
+const MAX_DIF_TIEMPO_MENSAJE = 1000 * config.maxDifTiempoMensaje; // en milisegundos 300000
 
 
-const INTERVALO_VERIF_EXP_MSJ = 20; // cada cuanto tiempo se verifica el tiempo de expiracion de los mensajes en la cola de mensajes
+const INTERVALO_VERIF_EXP_MSJ = 1000 * config.intervaloVerifExpMsj; // cada cuanto tiempo se verifica el tiempo de expiracion de los mensajes en la cola de mensajes
 
 // definimos 2 sockets: el que escucha todos los mensajes entrantes (subSocket), y el que va a enviar los mensajes a destino (pubSocket)
 const subSocket = zmq.socket('xsub'),  // el broker escucha a todos los publisher

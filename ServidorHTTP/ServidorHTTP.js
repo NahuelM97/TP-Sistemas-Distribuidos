@@ -5,18 +5,22 @@ let brokerIpPuerto = [
     { ip: '127.0.0.1', puertoPub: 3006, puertoSub: 3007, puertoRep: 3008 }  // "id" 2
 ];
 
+let config = require('./configServidorHTTP.json');
+
+//CONFIG TODO 
+
+brokerIpPuerto = config.brokerIpPuerto;
 
 const express = require('express')
 const app = express()
-const port = 9123
-
+const port = config.port;
 
 const globals = require('../Global/Globals');
 
 //PP: Aca se pone a escuchar
 app.listen(port, () => {
     console.log(`Servidor HTTP escuchando en http://localhost:${port}`)
-})
+});
 
 
 
