@@ -1,7 +1,13 @@
 
 const net = require('net');
 
-const port = 4444;
+
+let config = require('./configNTP.json');
+console.log(config);
+
+
+const port = config.port;
+
 
 let server = net.createServer(function (socket) {
   socket.on('data', function (dataJSON) {
@@ -23,10 +29,3 @@ let server = net.createServer(function (socket) {
 
 server.listen(port);
 
-
-
-
-
-function coordinarFecha(){
-
-}
