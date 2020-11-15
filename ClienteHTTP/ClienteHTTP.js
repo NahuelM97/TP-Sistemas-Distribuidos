@@ -1,9 +1,15 @@
 document.getElementById('botonMensajes').addEventListener('click', cbGetMensajes);
 
+let config = require('./configClienteHTTP.json');
+
+console.log(config);
+
+const portServidorHTTP = config.portServidorHTTP;
+
 $("#botonTopicos").click(function(){
     //hacer un get al servidor
     let brokerId = document.getElementById('selectBrokerId').value;
-    let url = `http://localhost:9123/broker/${brokerId}/topics`;
+    let url = `http://localhost:${portServidorHTTP}/broker/${brokerId}/topics`;
 
     var XHR = new XMLHttpRequest();
     XHR.addEventListener("load", cbMostrarTopicos);

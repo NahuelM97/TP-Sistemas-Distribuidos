@@ -1,0 +1,8 @@
+{
+    "brokerIpPuerto": [
+        { "ip": "127.0.0.1", "puertoPub": 3000, "puertoSub": 3001, "puertoRep": 3002 }, 
+        { "ip": "127.0.0.1", "puertoPub": 3004, "puertoSub": 3005, "puertoRep": 3006 }, 
+        { "ip": "127.0.0.1", "puertoPub": 3008, "puertoSub": 3009, "puertoRep": 3010 }  
+    ],
+    "port": 9123
+}
