@@ -20,8 +20,8 @@ const MAX_DIF_TIEMPO_MENSAJE = 1000 * config.maxDifTiempoMensaje; // en milisegu
 const INTERVALO_VERIF_EXP_MSJ = 1000 * config.intervaloVerifExpMsj; // cada cuanto tiempo se verifica el tiempo de expiracion de los mensajes en la cola de mensajes
 
 // definimos 2 sockets: el que escucha todos los mensajes entrantes (subSocket), y el que va a enviar los mensajes a destino (pubSocket)
-const subSocket = zmq.socket('xsub'),  // el broker escucha a todos los publisher
-	pubSocket = zmq.socket('xpub') // el broker le manda a todos los subscriber
+const xsubSocket = zmq.socket('xsub'),  // el broker escucha a todos los publisher
+	xpubSocket = zmq.socket('xpub') // el broker le manda a todos los subscriber
 
 const repSocket = zmq.socket('rep'); //para contestar al servidor http y al coordinador
 
@@ -89,26 +89,28 @@ function validarTiempoExpiracionMensajes() {
 // inicializa el socket para recibir publicaciones y mandarlas a clientes a traves del subSocket
 function initPubSocket() {
 	// se conectan los suscriptores esperando recibir mensajes
-	pubSocket.on('message', function (topic) {
+	xpubSocket.on('message', function (topic) {
 		let topicSinHeader = topic.toString().substring(1);
 		if (colaMensajesPorTopico.hasOwnProperty(topicSinHeader)) { // el topico es valido QAOP
-			subSocket.send(topic); // el broker se suscribe a ese topico para poder recibir mensajes de sus publicadores 
-			console.log(`topic: ${topicSinHeader}`);
+			xsubSocket.send(topic); // el broker se suscribe a ese topico para poder recibir mensajes de sus publicadores 
+			console.log(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
 
 		} else { // le pidieron publicar en un topico que no administra
-			console.log(`invalid topic: ${topicSinHeader}`);
+			console.log(`Error 1239123: Suscripcion a un topico invalido: ${topicSinHeader}`);
 		}
 
 	})
 
-	pubSocket.bindSync(`tcp://${brokerIp}:${BROKER_PUB_PORT}`) //si yo quiero escuchar me suscribo a este
+	xpubSocket.bindSync(`tcp://${brokerIp}:${BROKER_PUB_PORT}`) //si un cliente quiere escuchar se suscribe a este
 }
 
 // inicializa el socket para mandar lo que se publica a los clientes
 function initSubSocket() {
 	// se conectan los publicadores para que su mensaje sea redirigido a los suscriptores
-	subSocket.on('message', function (topic, message) {
+	xsubSocket.on('message', function (topic, message) {
+		
 		if (colaMensajesPorTopico.hasOwnProperty(topic)) { // el topico es valido 
+			console.log(` LLEGO MSJ -> - topico: ${topic}, mensaje: ${message}`);
 			procesaMensaje(topic, message);
 		}
 		else {
@@ -116,7 +118,7 @@ function initSubSocket() {
         }
 	});
 
-	subSocket.bindSync(`tcp://${brokerIp}:${BROKER_SUB_PORT}`) //si yo quiero publicar me comunico con este
+	xsubSocket.bindSync(`tcp://${brokerIp}:${BROKER_SUB_PORT}`) //si un cliente quiere publicar se comunica con este
 }
 
 // si la cola de mensajes tiene espacio -> inserta el mensaje en la cola
@@ -148,7 +150,7 @@ function procesaMensaje(topico, mensaje) {
 
 // el mensaje cumple con las condiciones de la cola
 function publicarMensajeValido(topico, mensaje) {
-	pubSocket.send([topico, mensaje]) // distribucion del mensaje a suscriptores
+	xpubSocket.send([topico, mensaje]) // distribucion del mensaje a suscriptores
 	console.log(` REDIRIGIENDO MSJ topico: ${topico}, mensaje: ${mensaje}`);
 }
 

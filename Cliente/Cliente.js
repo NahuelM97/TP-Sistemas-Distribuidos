@@ -1,7 +1,7 @@
 var zmq = require('../zeromq/node_modules/zeromq')
-    , pubSock = zmq.socket('pub')
+    , pubSocket = zmq.socket('pub')
     // , subSock = zmq.socket('sub')
-    , reqSock = zmq.socket('req');
+    , reqSocket = zmq.socket('req');
 
 const globals = require('../Global/Globals');
 
@@ -15,6 +15,7 @@ let coordinadorPuerto = config.coordinadorPuerto;
 
 //SERVER NTP
 const net = require('net');
+const { REPL_MODE_STRICT } = require('repl');
 
 const portNTP = config.portNTP;
 const NTP_IP = config.ipNTP;
@@ -33,7 +34,18 @@ var arregloSockets = {}; //almacena en formato clave(ipPuerto) valor(variable de
 var clientesOnline = {};
 let topicoIpPuertoPub = {};
 
+
+//Es un clave:valor
+//    - clave: idPeticion
+//    - valor: { idPeticion: globals.generateUUID(), accion: globals.COD_PUB, topico: topico }
 var pendingRequests = {};
+
+//Es un clave:valor
+//    - clave: idPeticion (mismo que en pendingRequest)
+//    - valor: {idPeticion: globals.generateUUID(),emisor: userId, mensaje: contenido, fecha: *}
+//
+// *La fecha no se guarda, porque se calcula y se guarda antes de enviar el mensaje
+var pendingPublications = {};
 
 {// PP
     initClient();
@@ -41,31 +53,50 @@ var pendingRequests = {};
 }
 
 function initClient() {
-    reqSock.on("message", cbRespuestaCoordinador);
-    reqSock.connect(`tcp://${coordinadorIP}:${coordinadorPuerto}`);
+    reqSocket.on("message", cbRespuestaCoordinador);
+    reqSocket.connect(`tcp://${coordinadorIP}:${coordinadorPuerto}`);
     var messageInicial = {
         idPeticion: globals.generateUUID(),
         accion: globals.COD_ALTA_SUB,
         topico: `${MESSAGE_TOPIC_PREFIX}/${userId}`
     };
-    socketSendMessage(reqSock,messageInicial);
+    //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
+    solicitarBrokerSubACoordinador(messageInicial);
 
-    var messageHeartbeatPub = {
-        idPeticion: globals.generateUUID(),
-        accion: globals.COD_PUB,
-        topico: HEARTBEAT_TOPIC_NAME
-    }
-
-    socketSendMessage(reqSock,messageHeartbeatPub);
+    
+    //Le envia al coordinador la peticion de ip:puerto para publicar heartbeats
+    
+    intentaPublicar("",HEARTBEAT_TOPIC_NAME);
 }
 
+function solicitarBrokerSubACoordinador(mensajeReq){
+    pendingRequests[mensajeReq.idPeticion] = mensajeReq; 
+    socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
+}
+
+//Dado un mensaje, realiza el envio por subSocket
+//  el mensaje es guardado en pendingRequest, para cuando el coordinador nos responda
+//  podamos saber que queriamos mandar
+function solicitarBrokerPubACoordinador(mensajeReq, mensajePub){
+    pendingRequests[mensajeReq.idPeticion] = mensajeReq;  
+    pendingPublications[mensajeReq.idPeticion] = mensajePub;
+    socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
+}
+
+//Dado un mensaje, realiza el envio por pubSocket
+function publicaEnBroker(mensaje, topico){
+    let mensajePub = [topico,JSON.stringify(mensaje)];
+    socketSendMessage(pubSocket, mensajePub);
+}
+
+//Dado un socket y un mensaje, realiza el socket.send()
 function socketSendMessage(socket, mensaje){
     // Se guarda en pending requests el envío
-    if(mensaje != null && mensaje.idPeticion) // Compruebo que tenga idPeticion 
-    {
-        pendingRequests[mensaje.idPeticion] = mensaje;
+    if(mensaje != null)
+    {   
+        //pendingRequests[mensaje.idPeticion] = mensaje;     
         console.log(`Se realiza envio: ${JSON.stringify(mensaje)}`);
-        socket.send(JSON.stringify(mensaje));
+        socket.send(mensaje);
     }
     else
     {
@@ -135,24 +166,31 @@ function sincronizacionNTP(){
 //////////////////////////////////////////////////////////////////////////////////////
 //                                      PUB                                         //                                        
 //////////////////////////////////////////////////////////////////////////////////////
-function enviarMensaje(contenido,topico){
-    if(topicoIpPuertoPub.hasOwnProperty(topico)){
-        let mensaje = {
-            idPeticion: globals.generateUUID(),
-            emisor: userId,
-            mensaje: contenido,
-            fecha: getTimeNTP(),
-        }
-        socketSendMessage(pubSock,mensaje);
-    } else {
-        let mensaje = {
+
+// Trata de enviar un mensaje, creandolo a partir de un contenido, en un topico (broker).
+//  - Si tiene el ip:puerto almacenado del broker, publica
+//  - Sino, le envia una solicitud al coordinador para obtener esos datos
+//30faab00-2339-4e57-928a-b78cabb4af6c
+function intentaPublicar(contenido,topico){
+    //Si tengo la ubicacion del topico (broker) guardada, lo envio
+    let mensajePub = {
+        emisor: userId,
+        mensaje: contenido
+    } 
+    if(topicoIpPuertoPub.hasOwnProperty(topico)){ 
+        publicaEnBroker(mensajePub, topico);
+    } else { //Si no lo tengo, se lo pido al coordinador
+        let mensajeReq = {
             idPeticion: globals.generateUUID(),
             accion: globals.COD_PUB,
             topico: topico
         }
-        socketSendMessage(reqSock,mensaje);
+        solicitarBrokerPubACoordinador(mensajeReq, mensajePub);
+        
     }
 }
+
+
 //////////////////////////////////////////////////////////////////////////////////////
 //                                      PUB                                         //                                        
 //////////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +230,7 @@ function cbRespuestaCoordinador(replyJSON) {
 
     
     console.log('Recibi mensaje del coordinador');
-    
+
     let reply = JSON.parse(replyJSON);
     console.log("Received reply : [", reply, ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
 
@@ -200,9 +238,12 @@ function cbRespuestaCoordinador(replyJSON) {
         switch (reply.accion) {
             case globals.COD_PUB:
                 procesarAltaTopicos(reply.resultados.datosBroker);
+                //conseguir el mensaje que queriamos enviar
+                let mensaje = pendingPublications[reply.idPeticion];
+                let topico = pendingRequests[reply.idPeticion].topico; 
+                publicaEnBroker(mensaje,topico);
                 break;
-            case globals.COD_ALTA_SUB:
-                procesarAltaTopicos(reply.resultados.datosBroker);
+            case globals.COD_ALTA_SUB: procesarAltaTopicos(reply.resultados.datosBroker);                
                 break;
             default:
                 console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");

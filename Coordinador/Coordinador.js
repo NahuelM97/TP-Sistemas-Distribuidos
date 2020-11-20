@@ -182,18 +182,19 @@ function getIdBrokerMenosTopicos() {
 // Envia respuesta al cliente del broker, del topico solicitado porque ya estaba asignado a un broker
 // le dice a un cliente donde publicar
 function enviarBrokerSegunTopicoExistente(respuestaDelBroker){
-    
+    let brokerEnviar = brokerIpPuerto[topicoIdBroker[respuestaDelBroker.topico]];
+    let puertoEnviado = respuestaDelBroker.accion == COD_PUB? brokerEnviar.puertoSub : brokerEnviar.puertoPub;
     let resultados = { 
         datosBroker: [
             {
                 topico: respuestaDelBroker.topico,
                 ip:  brokerIpPuerto[topicoIdBroker[respuestaDelBroker.topico]].ip,
-                puerto: brokerIpPuerto[topicoIdBroker[respuestaDelBroker.topico]].puertoPub,
+                puerto: puertoEnviado,
             }
         ],
     };
    
-    let respuestaAlCliente = globals.generarRespuestaExitosa(COD_ALTA_SUB,respuestaDelBroker.idPeticion,resultados);
+    let respuestaAlCliente = globals.generarRespuestaExitosa(respuestaDelBroker.accion,respuestaDelBroker.idPeticion,resultados);
 
 
     repSocket.send(JSON.stringify(respuestaAlCliente));
@@ -201,7 +202,7 @@ function enviarBrokerSegunTopicoExistente(respuestaDelBroker){
 
 // le avisamos a un broker que tiene un topico nuevo asignado
 //el codigo de operacion es siempre ADD_TOPICO_BROKER independientemente si me lo pidieron para pub o para sub.
-function enviarAsignacionTopicoBroker(socket,request){
+function enviarAsignacionTopicoBroker(request){
     let requestAlBroker = {
         idPeticion: globals.generateUUID(),
         accion: COD_ADD_TOPICO_BROKER,
@@ -221,8 +222,8 @@ function enviarAsignacionTopicoBroker(socket,request){
 
 
     let broker = brokerIpPuerto[idBrokerMin];
-    socket.connect(`tcp://${broker.ip}:${broker.puertoRep}`); 
-    socket.send(JSON.stringify(requestAlBroker));
+    reqSocket.connect(`tcp://${broker.ip}:${broker.puertoRep}`); 
+    reqSocket.send(JSON.stringify(requestAlBroker));
     console.log('MANDE');
 }
        
@@ -237,7 +238,7 @@ function procesarSolicitudPublicacion(request){
     } 
     // De caso contrario, es necesario dar de alta el nuevo topico
     else {
-        enviarAsignacionTopicoBroker(reqSocket, topico,isPub);
+        enviarAsignacionTopicoBroker(request);
     }
 }
 
@@ -287,7 +288,7 @@ function procesarAltaCliente(request){
     //let socketNuevoCliente = zmq.socket('req');
 
     // socketNuevoCliente.on('message', cbAsignaTopicoBroker);
-    enviarAsignacionTopicoBroker(reqSocket, request);
+    enviarAsignacionTopicoBroker(request);
 
 }
 
