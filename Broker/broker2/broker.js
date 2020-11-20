@@ -23,7 +23,7 @@ const INTERVALO_VERIF_EXP_MSJ = 1000 * config.intervaloVerifExpMsj; // cada cuan
 const subSocket = zmq.socket('xsub'),  // el broker escucha a todos los publisher
 	pubSocket = zmq.socket('xpub') // el broker le manda a todos los subscriber
 
-const repSocket = zmq.socket('rep'); //para contestar al servidor http y al coordinador
+const repSocket = zmq.socket('req');
 
 let colaMensajesPorTopico = {}; // key = topico, value = cola de mensajes ordenados por fecha ascendente
 // cada cola de mensajes esta ordenada por fecha de envio del mensaje
@@ -90,13 +90,12 @@ function validarTiempoExpiracionMensajes() {
 function initPubSocket() {
 	// se conectan los suscriptores esperando recibir mensajes
 	pubSocket.on('message', function (topic) {
-		let topicSinHeader = topic.toString().substring(1);
-		if (colaMensajesPorTopico.hasOwnProperty(topicSinHeader)) { // el topico es valido QAOP
+		if (colaMensajesPorTopico.hasOwnProperty(topic)) { // el topico es valido 
 			subSocket.send(topic); // el broker se suscribe a ese topico para poder recibir mensajes de sus publicadores 
-			console.log(`topic: ${topicSinHeader}`);
+			console.log(`topic: ${topic}`);
 
 		} else { // le pidieron publicar en un topico que no administra
-			console.log(`invalid topic: ${topicSinHeader}`);
+			console.log(`invalid topic: ${topic}`);
 		}
 
 	})
@@ -163,7 +162,6 @@ function initRepSocket() {
 // se ejecuta cuando me llega una request del coordinador o el server HTTP
 function cbRep(requestJSON){
 	let request = JSON.parse(requestJSON);
-	console.log(`Me asignaron el topico ${requestJSON}`);
 
 	let topico = request.topico;
 	
