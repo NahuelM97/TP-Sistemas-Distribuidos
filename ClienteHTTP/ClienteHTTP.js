@@ -1,32 +1,37 @@
-document.getElementById('botonMensajes').addEventListener('click', cbGetMensajes);
+const portServidorHTTP = 9123;
 
-let config = require('./configClienteHTTP.json');
+$('#btnMostrarMensajes').click(GetMensajes);
 
-console.log(config);
 
-const portServidorHTTP = config.portServidorHTTP;
-
-$("#botonTopicos").click(function(){
+$("#btnSolicitarTopicos").click(function(){
     //hacer un get al servidor
-    let brokerId = document.getElementById('selectBrokerId').value;
+    let brokerId = $('#ddlIdBroker').val();
     let url = `http://localhost:${portServidorHTTP}/broker/${brokerId}/topics`;
 
     var XHR = new XMLHttpRequest();
-    XHR.addEventListener("load", cbMostrarTopicos);
+    XHR.addEventListener("load",mostrarTopicos);
     XHR.open("GET", url);
     XHR.send();
 
 
-    $("#resultadoTopicos").fadeIn();
+    $("#cargandoTopicos").show();
 });
 
-$("#selectBrokerId").change(function(){
+$("#ddlIdBroker").change(function(){
 
     $("#resultadoTopicos").fadeOut();
 
 });
 
-function cbMostrarTopicos() {
+function topicosError(){
+    $("#cargandoTopicos").hide();
+    alert("Error al recibir respuesta del servidor");
+}
+
+function mostrarTopicos() {
+    $("#cargandoTopicos").hide();
+    $("#resultadoTopicos").fadeIn();
+
     console.log(this.responseText);
     let response = JSON.parse(this.responseText);
 
@@ -56,10 +61,14 @@ function cbMostrarTopicos() {
 }
 
 
-function cbGetMensajes() {
+function GetMensajes() {
+    // Limpia los mensajes existentes
+    $('#ulResultadoMensajes').empty();
+    $('#divListaMensajes').hide();
+
     //hacer un get al servidor
-    let brokerId = document.getElementById('selectBrokerId').value;
-    let topicoId = document.getElementById('selectTopicoId').value;
+    let brokerId = $('#ddlIdBroker').val();
+    let topicoId = $('#ddlIdBroker').val();
     let url = `http://localhost:9123/broker/${brokerId}/topics/${topicoId}`;
 
     var XHR = new XMLHttpRequest();
@@ -73,7 +82,7 @@ function cbMostrarMensajes() {
 
     let response = JSON.parse(this.responseText);
 
-    document.getElementById('mostrarMensajesTopico').classList.remove('escondido');
+    $('#divListaMensajes').fadeIn();
 
     let ulMensajes = document.getElementById("ulResultadoMensajes");
 
@@ -82,7 +91,7 @@ function cbMostrarMensajes() {
         response.resultados.mensajes.forEach(mensaje => {
 
             let listElement = document.createElement("li");
-            let textoLi = `Remitente: ${mensaje.emisor}, mensaje: ${mensaje.mensaje} y fecha: ${mensaje.fecha}`;
+            let textoLi = getFormattedMessage(mensaje);
             listElement.appendChild(document.createTextNode(textoLi));
             ulMensajes.appendChild(listElement);
         });
@@ -95,6 +104,20 @@ function cbMostrarMensajes() {
 
 }
 
+function getFormattedMessage(mensaje){
+    let formattedFecha = getFormattedDate(mensaje.fecha);
+    return `${formattedFecha} - ${mensaje.emisor}: ${mensaje.mensaje}`
+}
+
+function getFormattedDate(date){
+    let fecha = new Date(date);
+    let formattedDay = fecha.getDay().toString().length == 1 ? "0" + fecha.getDay() : fecha.getDay(); // Si el día no empieza en 0 se lo agrega
+    let formattedMonth = fecha.getMonth().toString().length == 1 ? "0" + fecha.getMonth() : fecha.getMonth(); // Si el mes no empieza en 0 se lo agrega
+    let formattedHours = fecha.getHours().toString().length == 1 ? "0" + fecha.getHours() : fecha.getHours();
+    let formattedMinutes = fecha.getMinutes().toString().length == 1 ? "0" + fecha.getMinutes() : fecha.getMinutes();
+    let formattedFecha = formattedDay + '/' + formattedMonth + '/' + fecha.getFullYear() + ' ' + formattedHours + ':' + formattedMinutes;
+    return formattedFecha;
+}
 
 //vacia el select de los topicos
 function vaciarListaTopicos(selectTopicos) {

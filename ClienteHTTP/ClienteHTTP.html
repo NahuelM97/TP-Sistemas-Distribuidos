@@ -13,7 +13,7 @@
 <body>
     <div class="container bg-dark text-white">
         <div class="row mt-4">
-            <div class="col-12 text-center">
+            <div class="col-12 text-center mt-4">
                 
                 <h1>Administracion HTTP de brokers</h1>
                 <div id="mostrarTopicos">
@@ -23,37 +23,45 @@
                         </div>
                     </div>
                     <div class="row m-4">
-                        <div class="col">
-                    <select name="brokerId" id="selectBrokerId" class="form-control">
-                        <option value="0" selected>Broker 1</option>
-                        <option value="1">Broker 2</option>
-                        <option value="2">Broker 3</option>
-                        <option value="3">Broker 4</option>
-                        <option value="4">Broker 5</option>
-                    </select>
+                        <div class="col-md-2 offset-5">
+                            <select name="brokerId" id="ddlIdBroker" class="form-control">
+                                <option value="0" selected>Broker 1</option>
+                                <option value="1">Broker 2</option>
+                                <option value="2">Broker 3</option>
+                                <option value="3">Broker 4</option>
+                                <option value="4">Broker 5</option>
+                            </select>
                         </div>
                     </div>
                     <div class="row m-4">
                         <div class="col">
-                            <button id="botonTopicos" class="btn btn-success">Solicitar Topicos</button>
+                            <button id="btnSolicitarTopicos" class="btn btn-success">Solicitar Topicos</button>
+                        </div>
+                    </div>
+                    
+                    <div class="" id="cargandoTopicos">
+                        <div class="row m-4">
+                            <div class="col">
+                                <h2>Cargando tópicos...</h2>
+                            </div>
                         </div>
                     </div>
 
                     <div class="" id="resultadoTopicos">
                         <div class="row m-4">
                             <div class="col">
-                                <h2>Elija un Topico</h2>
+                                <h2>Elija un tópico</h2>
                             </div>
                         </div>
-                        <div class="row">
+                        <div class="row my-4">
                             <div class="col-md-6 offset-3 w-25">
                                 <select name="topicoId" id="selectTopicoId" size="10" class="form-control">
                                 </select>
                             </div>
                         </div>
-                        <div class="row">
+                        <div class="row my-4">
                             <div class="col">
-                                <button id="botonMensajes" class="btn btn-primary">Mostrar mensajes de topico</button>
+                                <button id="btnMostrarMensajes" class="btn btn-primary">Mostrar mensajes de topico</button>
                             </div>
                         </div>
                     </div>
@@ -61,27 +69,28 @@
 
 
 
-                <div class="escondido" id="mostrarMensajesTopico">
+                <div id="divListaMensajes" class="py-3">
+                    <div class="text-left">
+                        <ul id="ulResultadoMensajes">
 
-                    <ul id="ulResultadoMensajes">
-
-                    </ul>
+                        </ul>
+                    </div>
+                    <button class="btn btn-danger">Eliminar cola de mensajes</button>
                 </div>
-                <div class="escondido" id="eliminarCola">
-                    <button>Eliminar cola de mensajes</button>
-                </div>
 
+                
             </div>
         </div>
         <footer class="page-footer"></footer>
     </div>
-</body>
+    
 
-<footer class="page-footer font-small blue pt-4 bg-secondary fixed-bottom">
-  
-    <div class="footer-copyright text-center py-3">© 2020 Grupo IV - Sistemas Distribuidos - Universidad Nacional de Mar Del Plata</div>
-  
-</footer>
+    <footer class="page-footer font-small blue bg-secondary fixed-bottom d-inline-block">
+    
+        <div class="footer text-center py-3">Grupo IV - Sistemas Distribuidos - Universidad Nacional de Mar Del Plata</div>
+    
+    </footer>
+</body>
 
 <script src="./jQuery/jquery-3.5.1.min.js"></script>
 <script src="./bootstrap/js/bootstrap.js"></script>
