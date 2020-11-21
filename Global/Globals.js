@@ -76,7 +76,12 @@ function generateUUID() {
 
 // dado un arreglo asociativo keyvalue retorna la cantidad de keys (elementos) que contiene
 function getCantKeys(keyvalue) {
-	return Object.keys(keyvalue).length
+	return Object.keys(keyvalue).length;
+}
+
+// dado un arreglo asociativo keyvalue retorna sus keys (claves) que contiene
+function getKeys(keyvalue){
+	return Object.keys(keyvalue);
 }
 
 
@@ -96,5 +101,6 @@ module.exports = {
 	generarRespuestaExitosa: generarRespuestaExitosa,
 	generarRespuestaNoExitosa: generarRespuestaNoExitosa,
 	generateUUID: generateUUID,
-	getCantKeys: getCantKeys
+	getCantKeys: getCantKeys,
+	getKeys: getKeys
 }

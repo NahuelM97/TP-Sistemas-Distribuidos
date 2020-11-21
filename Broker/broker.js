@@ -4,6 +4,7 @@ const zmq = require('../zeromq/node_modules/zeromq');
 const globals = require('../Global/Globals');
 
 let config = require('./configBroker.json');
+const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals');
 console.log(config);
 
 // TODO - Sacar estos datos de un archivo JSON
@@ -45,6 +46,7 @@ let colaMensajesPorTopico = {}; // key = topico, value = cola de mensajes ordena
 // - cuando un cliente se suscribe por primera vez a un topico o se reconecta, hay que mandarle las colas de mensajes de message/<user> y el message/all a
 //   su message/<user> con el protocolo PUBSUB
 // - sincronizar reloj con NTP
+// - responder solicitudes del server HTTP
 
 
 
@@ -165,10 +167,11 @@ function initRepSocket() {
 // se ejecuta cuando me llega una request del coordinador o el server HTTP
 function cbRep(requestJSON){
 	let request = JSON.parse(requestJSON);
-	console.log(`Me asignaron el topico ${requestJSON}`);
+	
 
 	let topico = request.topico;
-	
+	let mensaje;
+
 	switch (request.accion) {
 		//COORDINADOR
 		case globals.COD_ADD_TOPICO_BROKER:
@@ -176,38 +179,84 @@ function cbRep(requestJSON){
 				agregarColaMensajes(topico);
             }
 
-			let mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, {});
+			mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, {});
 			// los resultados van vacíos porque el coord ya sabe ip y puertos del broker
 
 			repSocket.send(JSON.stringify(mensaje));
+
+			console.log(`Asignaron el topico ${requestJSON}`);
 			break;
 
 		//SERVIDOR HTTP
 		case globals.COD_GET_TOPICOS:
+			let topicos = globals.getKeys(colaMensajesPorTopico);
 
+			let resultados = {
+				listaTopicos:topicos // ['topico1','topico2',...]
+			};
+
+			mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, resultados);
+			// los resultados van vacíos porque el coord ya sabe ip y puertos del broker
+
+			repSocket.send(JSON.stringify(mensaje));
+
+			console.log(`Solicitaron los topicos`);
 			break;
 
 		case globals.COD_GET_MENSAJES_COLA:
+			
+			if (colaMensajesPorTopico.hasOwnProperty(topico)) { 
+				//manda cola de mensajes de ese topico
+				let resultados = {
+					mensajes: colaMensajesPorTopico[topico] // ['mensaje1','mensaje2',...]
+				};
+				mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, resultados);
+			}
+			else{
+				//no maneja ese topico -> manda rta con codigo de error
+				mensaje = globals.generarRespuestaNoExitosa(request.accion, request.idPeticion, globals.COD_ERROR_TOPICO_INEXISTENTE, `El topico ${topico} no es administrado por este broker`);
+			}
 
+			repSocket.send(JSON.stringify(mensaje));
+
+			console.log(`Solicitaron los mensajes del topico ${topico}`);
 			break;
 
 		case globals.COD_BORRAR_MENSAJES:
+			if (colaMensajesPorTopico.hasOwnProperty(topico)) { 
+				//borra los mensajes de ese topico porque lo administraba
+				borrarColaMensajesTopico(topico);
+				let resultados = {};
+				mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, resultados);
+			}
+			else{
+				//no maneja ese topico -> no borra mensajes
+				mensaje = globals.generarRespuestaNoExitosa(request.accion, request.idPeticion, globals.COD_ERROR_TOPICO_INEXISTENTE, `El topico ${topico} no es administrado por este broker`);
+			
+			}
 
+			console.log(`Solicitaron borrar la cola de mensajes del topico ${topico}`);
 			break;
 
 		default:
-			globals.generarRespuestaNoExitosa(request.accion, request.idPeticion, globals.COD_ERROR_OPERACION_INEXISTENTE, 'El codigo de operacion ingresado no se reconoce como un codigo valido');
+			mensaje = globals.generarRespuestaNoExitosa(request.accion, request.idPeticion, globals.COD_ERROR_OPERACION_INEXISTENTE, 'El codigo de operacion ingresado no se reconoce como un codigo valido');
+			repSocket.send(JSON.stringify(mensaje));
+
 			console.log(`Error ${request.error.codigo}: ${request.error.mensaje}`);
 			break;
 	}
 	
 }
 
-// agrega una nueva cola de mensajes para el nuevo topico que va a administrar
+// dado un topico crea su cola de mensajes
 function agregarColaMensajes(topico) {
 	colaMensajesPorTopico[topico] = [];
 }
 
+// dado un topico borra el contenido de su cola de mensajes
+function borrarColaMensajesTopico(topico){
+	colaMensajesPorTopico[topico] = [];
+}
 
 
 function compararMensajesPorFecha(mensaje1,mensaje2){

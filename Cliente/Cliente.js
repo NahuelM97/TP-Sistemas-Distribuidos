@@ -248,7 +248,7 @@ function cbRespuestaCoordinador(replyJSON) {
                 conectarseParaPub(ipPuerto);
 
                 //!!!MUY FEO: DEPENDE DE LA RED, HARDWARE TODO!!!!
-                //TODO
+                //TODO -> posible cambio a usar monitor para ver si se conecta
                 setTimeout(() => {
                     
                     //conseguir el mensaje y topico que queriamos enviar
