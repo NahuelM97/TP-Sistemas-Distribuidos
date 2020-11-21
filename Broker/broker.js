@@ -123,10 +123,10 @@ function initSubSocket() {
 
 // si la cola de mensajes tiene espacio -> inserta el mensaje en la cola
 // si la cola de mensajes no tiene espacio y el mensaje que llego es mas reciente que el mas viejo de la cola -> descarta el mensajes mas antiguo para que haya espacio
-function procesaMensaje(topico, mensaje) {
+function procesaMensaje(topico, mensajeJSON) {
 	let colaMensajes = colaMensajesPorTopico[topico];
-	
-	if (colaMensajes.isEmpty() || mensaje.fecha > colaMensajes[0].fecha) { // el mensaje cumple la condicion de la cola
+	let mensaje = JSON.parse(mensajeJSON);
+	if (colaMensajes.length === 0 || mensaje.fecha > colaMensajes[0].fecha) { // el mensaje cumple la condicion de la cola
 		
 		colaMensajes.push(mensaje);
 		colaMensajes.sort(compararMensajesPorFecha); // ordenar por fecha

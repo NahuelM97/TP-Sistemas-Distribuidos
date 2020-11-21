@@ -6,5 +6,7 @@
     "ipNTP": "127.0.0.1",
     "intervalNTP": 1,
     "intervalPeriodo": 120,
-    "cantOffsetsNTP": 10
+    "cantOffsetsNTP": 10,
+    "intervalEnvioHeartbeat": 10,
+    "toleranciaCliente": 30
 }

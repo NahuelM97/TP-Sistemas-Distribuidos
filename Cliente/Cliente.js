@@ -1,6 +1,6 @@
 var zmq = require('../zeromq/node_modules/zeromq')
     , pubSocket = zmq.socket('pub')
-    // , subSock = zmq.socket('sub')
+    , subSocket = zmq.socket('sub')
     , reqSocket = zmq.socket('req');
 
 const globals = require('../Global/Globals');
@@ -21,6 +21,8 @@ const portNTP = config.portNTP;
 const NTP_IP = config.ipNTP;
 const INTERVAL_NTP = 1000 * config.intervalNTP; // seconds 1
 const INTERVAL_PERIODO = 1000 * config.intervalPeriodo;  //seconds 120
+const INTERVAL_ENVIO_HEARTBEAT = 1000 * config.intervalEnvioHeartbeat;
+const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
 const i = total = config.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
@@ -29,8 +31,6 @@ const MESSAGE_TOPIC_PREFIX = 'message';
 const HEARTBEAT_TOPIC_NAME = 'heartbeat';
 
 
-
-var arregloSockets = {}; //almacena en formato clave(ipPuerto) valor(variable del socket) los sockets para cada broker
 var clientesOnline = {};
 let topicoIpPuertoPub = {};
 
@@ -53,7 +53,9 @@ var pendingPublications = {};
 }
 
 function initClient() {
-    reqSocket.on("message", cbRespuestaCoordinador);
+    reqSocket.on('message', cbRespuestaCoordinador);             
+    subSocket.on('message', cbProcesaMensajeRecibido);
+    pubSocket.on('connectj', cbConnectPub);
     reqSocket.connect(`tcp://${coordinadorIP}:${coordinadorPuerto}`);
     var messageInicial = {
         idPeticion: globals.generateUUID(),
@@ -63,9 +65,14 @@ function initClient() {
     //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
     solicitarBrokerSubACoordinador(messageInicial);
 
-    
+
     //Le envia al coordinador la peticion de ip:puerto para publicar heartbeats
+    intentaPublicar("",HEARTBEAT_TOPIC_NAME);
+    intervalHeartbeat = setInterval(cbIntervalHeartbeat, INTERVAL_ENVIO_HEARTBEAT);
     
+}
+
+function cbIntervalHeartbeat(){
     intentaPublicar("",HEARTBEAT_TOPIC_NAME);
 }
 
@@ -76,11 +83,15 @@ function solicitarBrokerSubACoordinador(mensajeReq){
 
 //Dado un mensaje, realiza el envio por subSocket
 //  el mensaje es guardado en pendingRequest, para cuando el coordinador nos responda
-//  podamos saber que queriamos mandar
+//  podamos saber que queriamos mandar y que topico
 function solicitarBrokerPubACoordinador(mensajeReq, mensajePub){
     pendingRequests[mensajeReq.idPeticion] = mensajeReq;  
     pendingPublications[mensajeReq.idPeticion] = mensajePub;
     socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
+}
+
+function conectarseParaPub(ipPuerto){
+    pubSocket.connect(`tcp://${ipPuerto}`);
 }
 
 //Dado un mensaje, realiza el envio por pubSocket
@@ -208,21 +219,12 @@ function getTimeNTP(){
 }
 
 // TODO: Adaptar nuevo formato
-function procesarAltaTopicos(brokers){
+function suscribirseABroker(brokers){
     brokers.forEach(broker => {
         let ipPuerto = `${broker.ip}:${broker.puerto}`;
-
-        // Si no está en mis tópicos debo agregarlo
-        // ACA ESTA LA MALARIA!!!! ESTAMOS GUARDANDO LOS topicoIpPuertoPub
-        //PERO NO ESTAMOS GUARDANDO LOS topicoIpPuertoSub!!!!
-        //DESACOPLAR!!!!
-        if(!topicoIpPuertoPub.hasOwnProperty(broker.topico))
-        {
-            topicoIpPuertoPub[broker.topico] = ipPuerto;
-            let socket = getSocketByURL(ipPuerto);
-            socket.subscribe(broker.topico);
-            socket.on('message', cbProcesaMensajeRecibido);
-        }
+        subSocket.connect(`tcp://${ipPuerto.toString()}`);  
+        subSocket.subscribe(broker.topico);
+        
     })
 }
 //El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
@@ -241,16 +243,37 @@ function cbRespuestaCoordinador(replyJSON) {
         switch (reply.accion) {
             case globals.COD_PUB:
 
-                //Fer: Yo aca llamaria a otra funcion que sea, conectarseAPub
-                procesarAltaTopicos(reply.resultados.datosBroker);
-                //conseguir el mensaje que queriamos enviar
-                let mensaje = pendingPublications[reply.idPeticion];
-                let topico = pendingRequests[reply.idPeticion].topico; 
-                publicaEnBroker(mensaje,topico);
+                let broker = reply.resultados.datosBroker[0];
+                let ipPuerto = `${broker.ip}:${broker.puerto}`;
+                conectarseParaPub(ipPuerto);
+
+                //!!!MUY FEO: DEPENDE DE LA RED, HARDWARE TODO!!!!
+                //TODO
+                setTimeout(() => {
+                    
+                    //conseguir el mensaje y topico que queriamos enviar
+                    let mensaje = pendingPublications[reply.idPeticion];
+                    let topico = pendingRequests[reply.idPeticion].topico; 
+                    topicoIpPuertoPub[topico] = ipPuerto;
+                    publicaEnBroker(mensaje,topico);
+
+                }, 200);
+                
+                //====SI EL CONNECT ES BLOQUEANTE, PODEMOS PONER ESTO DE ABAJO===
+                //====      SINO, PONERLO EN EL CALLBACK DEL CONNECT          ===
+                
+                
+                //conseguir el mensaje y topico que queriamos enviar
+                // let mensaje = pendingPublications[reply.idPeticion];
+                // let topico = pendingRequests[reply.idPeticion].topico; 
+                // topicoIpPuertoPub[topico] = ipPuerto;
+                // publicaEnBroker(mensaje,topico);
+                
+               
                 break;
             case globals.COD_ALTA_SUB: 
                 //Fer: A este metodo le pondria conectarseASub
-                procesarAltaTopicos(reply.resultados.datosBroker);                
+                suscribirseABroker(reply.resultados.datosBroker);                
                 break;
             default:
                 console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
@@ -260,6 +283,14 @@ function cbRespuestaCoordinador(replyJSON) {
     else {
         console.error("Respuesta sin exito: " + reply.error.codigo + ' - ' + reply.error.mensaje);
     }
+}
+
+
+function cbConnectPub(){
+    let mensaje = pendingPublications[reply.idPeticion];
+    let topico = pendingRequests[reply.idPeticion].topico; 
+    topicoIpPuertoPub[topico] = ipPuerto;
+    publicaEnBroker(mensaje,topico);
 }
 
 // Llega un mensaje nuevo a un tópico al que estoy suscrito
@@ -274,16 +305,4 @@ function cbProcesaMensajeRecibido(topic, message) {
 
 }
 
-
-// Obtiene el socket dado un ipPuerto
-function getSocketByURL(ipPuerto) {
-    if (!arregloSockets.hasOwnProperty(ipPuerto)) { //con este broker no hable nunca, lo agrego a mi lista de brokers
-        let nuevoSocket = zmq.socket('sub');
-
-        arregloSockets[ipPuerto.toString()] = nuevoSocket;
-        nuevoSocket.connect(`tcp://${ipPuerto.toString()}`);
-    }
-
-    return arregloSockets[ipPuerto];
-}
 
