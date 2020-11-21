@@ -213,6 +213,9 @@ function procesarAltaTopicos(brokers){
         let ipPuerto = `${broker.ip}:${broker.puerto}`;
 
         // Si no está en mis tópicos debo agregarlo
+        // ACA ESTA LA MALARIA!!!! ESTAMOS GUARDANDO LOS topicoIpPuertoPub
+        //PERO NO ESTAMOS GUARDANDO LOS topicoIpPuertoSub!!!!
+        //DESACOPLAR!!!!
         if(!topicoIpPuertoPub.hasOwnProperty(broker.topico))
         {
             topicoIpPuertoPub[broker.topico] = ipPuerto;
@@ -237,13 +240,17 @@ function cbRespuestaCoordinador(replyJSON) {
     if(reply && reply.exito) {
         switch (reply.accion) {
             case globals.COD_PUB:
+
+                //Fer: Yo aca llamaria a otra funcion que sea, conectarseAPub
                 procesarAltaTopicos(reply.resultados.datosBroker);
                 //conseguir el mensaje que queriamos enviar
                 let mensaje = pendingPublications[reply.idPeticion];
                 let topico = pendingRequests[reply.idPeticion].topico; 
                 publicaEnBroker(mensaje,topico);
                 break;
-            case globals.COD_ALTA_SUB: procesarAltaTopicos(reply.resultados.datosBroker);                
+            case globals.COD_ALTA_SUB: 
+                //Fer: A este metodo le pondria conectarseASub
+                procesarAltaTopicos(reply.resultados.datosBroker);                
                 break;
             default:
                 console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
