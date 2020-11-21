@@ -1,11 +1,16 @@
 body {
     background-color: lightgray;
+    padding-bottom: 100px;
 }
 
 #resultadoTopicos{
     display:none; /*No es visible por defecto*/
 }
 
-.escondido {
+#cargandoTopicos{
+    display:none; /*No es visible por defecto*/
+}
+
+#divListaMensajes {
     display: none
 }

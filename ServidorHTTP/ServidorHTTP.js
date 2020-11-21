@@ -137,8 +137,8 @@ app.get('/broker/:brokerId/topics/:topic', (req, res) => {
             exito: true,
             resultados: {
                 mensajes: [{ emisor: 'pepe', mensaje: 'hola como va', fecha: '2020-12-12T11:22:33.000Z' },
-                { emisor: 'lucas', mensaje: 'chau', fecha: '1150-12-12T11:22:33.000Z' },
-                { emisor: 'daniel', mensaje: 'aaaaaaaaahhhhhhh', fecha: '1996-12-12T11:22:32.000Z' }]
+                { emisor: 'lucas', mensaje: 'chau', fecha: '2020-12-12T11:23:33.000Z' },
+                { emisor: 'daniel', mensaje: 'AAAAAAAAAAAAAAAAAAAAAAA[Object object]', fecha: '2020-12-12T11:25:32.000Z' }]
             },
             // error: {
             //     codigo: 1,
