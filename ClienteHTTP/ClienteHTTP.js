@@ -68,7 +68,7 @@ function GetMensajes() {
 
     //hacer un get al servidor
     let brokerId = $('#ddlIdBroker').val();
-    let topicoId = $('#ddlIdBroker').val();
+    let topicoId = $('#selectTopicoId').val();
     let url = `http://localhost:9123/broker/${brokerId}/topics/${topicoId}`;
 
     var XHR = new XMLHttpRequest();
