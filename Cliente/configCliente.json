@@ -6,5 +6,7 @@
     "intervalNTP": 1,
     "intervalPeriodo": 120,
     "cantOffsetsNTP": 10,
-    "onlineTolerance": 30
+    "onlineTolerance": 30,
+    "intervalEnvioHeartbeat": 10,
+    "toleranciaCliente": 30
 }
