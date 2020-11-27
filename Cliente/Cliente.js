@@ -9,7 +9,7 @@ let config = require('./configCliente.json');
 let configClientNTP = require('../Global/configClientNTP.json');
 
 //TODO LEER DE ALGUN LADO USERID
-let userId = config.userId;
+let userId = 'DefaultUser'; // En teoría, nunca debería quedar DefaultUser. Sin embargo, dejar un default previene males peores.
 let coordinadorIP = config.coordinadorIP;
 let coordinadorPuerto = config.coordinadorPuerto;
 
@@ -29,10 +29,12 @@ let offsetHora = 0;
 let offsetAvg = 0;
 
 const MESSAGE_TOPIC_PREFIX = 'message';
+const GROUP_TOPIC_PREFIX = 'group';
 const HEARTBEAT_TOPIC_NAME = 'heartbeat';
 
+const ONLINE_TOLERANCE = 1000 * config.onlineTolerance; // 30 segundos como máximo es el tiempo sin heartbeat en que un usuario sigue siendo considerado como online
 
-var clientesOnline = {};
+var clientesUltimoHeartBeat = {};
 let topicoIpPuertoPub = {};
 
 
@@ -48,7 +50,8 @@ var pendingRequests = {};
 // *La fecha no se guarda, porque se calcula y se guarda antes de enviar el mensaje
 var pendingPublications = {};
 
-{// PP
+function init(myUsername) {// PP
+    userId = myUsername;
     initClient();
     initClientNTP();
 }
@@ -300,7 +303,7 @@ function cbConnectPub(){
 function cbProcesaMensajeRecibido(topic, message) {
     if (topic = HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
         //actualizo el tiempo de conexion de alguien
-        clientesOnline[message.emisor] = message.fecha;
+        clientesUltimoHeartBeat[message.emisor] = message.fecha;
     }
     else {
         console.log('Recibio mensaje de topico:', topic.toString(), ' - ', message.toString());
@@ -309,3 +312,68 @@ function cbProcesaMensajeRecibido(topic, message) {
 }
 
 
+// Obtiene el socket dado un ipPuerto
+function getSocketByURL(ipPuerto) {
+    if (!arregloSockets.hasOwnProperty(ipPuerto)) { //con este broker no hable nunca, lo agrego a mi lista de brokers
+        let nuevoSocket = zmq.socket('sub');
+
+        arregloSockets[ipPuerto.toString()] = nuevoSocket;
+        nuevoSocket.connect(`tcp://${ipPuerto.toString()}`);
+    }
+
+    return arregloSockets[ipPuerto];
+}
+
+// Precondicion: está registrado en clientesUltimoHeartbeat
+function isUserOnline(user) {
+    getTimeNTP() - clientesUltimoHeartBeat[user].getTime() <=  ONLINE_TOLERANCE;
+}
+
+
+/**************************************************************************** /
+/                                                                             /
+/                            Cliente como módulo                              /
+/                                                                             /
+/ ****************************************************************************/
+
+function enviarMensajeAll(contenido) {
+    return intentaPublicar(contenido,MESSAGE_TOPIC_PREFIX+'/all');
+}
+
+function enviarMensajeGrupo(contenido,idGrupo) {
+    return intentaPublicar(contenido,GROUP_TOPIC_PREFIX+'/'+idGrupo);
+}
+
+function enviarMensajeUsuario(contenido,idUsuario) {
+    if (!clientesUltimoHeartBeat.hasOwnProperty[idUsuario]) {
+        return 'Se ha intentado enviar un mensaje a un usuario que no está registrado.';
+    }
+    if (!isUserOnline(idUsuario)) {
+        return 'El usuario no está en línea.';
+    }
+    else {
+        intentaPublicar(contenido,MESSAGE_TOPIC_PREFIX+'/'+idUsuario);
+        return 'Mensaje enviado.';
+    }
+}
+
+
+function suscripcionAGrupo(idGrupo) {
+    var suscripcionAGrupo = {
+        idPeticion: globals.generateUUID(),
+        accion: globals.COD_ALTA_SUB,
+        topico: `${GROUP_TOPIC_PREFIX}/${idGrupo}`
+    };
+    //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
+    solicitarBrokerSubACoordinador(suscripcionAGrupo);
+    return 'Solicitud procesada correctamente.';
+}
+
+module.exports = {
+	// funciones
+    enviarMensajeAll:enviarMensajeAll,
+    enviarMensajeGrupo:enviarMensajeGrupo,
+    enviarMensajeUsuario:enviarMensajeUsuario,
+    suscripcionAGrupo:suscripcionAGrupo,
+    init:init
+}
