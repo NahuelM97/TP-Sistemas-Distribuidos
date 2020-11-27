@@ -6,5 +6,5 @@
     "reqPort": 3003,
     "maxMensajesCola": 15,
     "maxDifTiempoMensaje": 30,
-    "intervaloVerifExpMsj": 20
+    "intervaloVerifExpMsj": 5
 }

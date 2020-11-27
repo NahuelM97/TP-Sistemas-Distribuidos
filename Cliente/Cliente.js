@@ -6,6 +6,7 @@ var zmq = require('../zeromq/node_modules/zeromq')
 const globals = require('../Global/Globals');
 
 let config = require('./configCliente.json');
+let configClientNTP = require('../Global/configClientNTP.json');
 
 //TODO LEER DE ALGUN LADO USERID
 let userId = config.userId;
@@ -17,13 +18,13 @@ let coordinadorPuerto = config.coordinadorPuerto;
 const net = require('net');
 const { REPL_MODE_STRICT } = require('repl');
 
-const portNTP = config.portNTP;
-const NTP_IP = config.ipNTP;
-const INTERVAL_NTP = 1000 * config.intervalNTP; // seconds 1
-const INTERVAL_PERIODO = 1000 * config.intervalPeriodo;  //seconds 120
+const portNTP = configClientNTP.portNTP;
+const NTP_IP = configClientNTP.ipNTP;
+const INTERVAL_NTP = 1000 * configClientNTP.intervalNTP; // seconds 1
+const INTERVAL_PERIODO = 1000 * configClientNTP.intervalPeriodo;  //seconds 120
 const INTERVAL_ENVIO_HEARTBEAT = 1000 * config.intervalEnvioHeartbeat;
 const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
-const i = total = config.cantOffsetsNTP;
+const i = total = configClientNTP.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
 
@@ -49,7 +50,7 @@ var pendingPublications = {};
 
 {// PP
     initClient();
-    //initClientNTP();
+    initClientNTP();
 }
 
 function initClient() {
@@ -138,6 +139,7 @@ function enviarTiemposNTP(){
   }
 
 function initClientNTP(){
+    let client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
     client.on('data', function (data) {
         
         let T4 = new Date(new Date().toISOString()).getTime();
@@ -156,7 +158,7 @@ function initClientNTP(){
         console.log('offset red:\t\t' + offsetDelNTP + ' ms');
         console.log('---------------------------------------------------');
     });
-    let client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
+    
 }
 
 
@@ -186,7 +188,8 @@ function intentaPublicar(contenido,topico){
     //Si tengo la ubicacion del topico (broker) guardada, lo envio
     let mensajePub = {
         emisor: userId,
-        mensaje: contenido
+        mensaje: contenido,
+        fecha: getTimeNTP()
     } 
     if(topicoIpPuertoPub.hasOwnProperty(topico)){ 
         publicaEnBroker(mensajePub, topico);
@@ -248,7 +251,7 @@ function cbRespuestaCoordinador(replyJSON) {
                 conectarseParaPub(ipPuerto);
 
                 //!!!MUY FEO: DEPENDE DE LA RED, HARDWARE TODO!!!!
-                //TODO -> posible cambio a usar monitor para ver si se conecta
+                //TODO
                 setTimeout(() => {
                     
                     //conseguir el mensaje y topico que queriamos enviar

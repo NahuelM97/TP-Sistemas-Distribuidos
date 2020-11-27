@@ -4,6 +4,7 @@ const zmq = require('../zeromq/node_modules/zeromq');
 const globals = require('../Global/Globals');
 
 let config = require('./configBroker.json');
+let configClientNTP = require('../Global/configClientNTP.json');
 const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals');
 console.log(config);
 
@@ -29,8 +30,18 @@ const repSocket = zmq.socket('rep'); //para contestar al servidor http y al coor
 let colaMensajesPorTopico = {}; // key = topico, value = cola de mensajes ordenados por fecha ascendente
 // cada cola de mensajes esta ordenada por fecha de envio del mensaje
 
+//SERVER NTP
+const net = require('net');
 
-
+const portNTP = configClientNTP.portNTP;
+const NTP_IP = configClientNTP.ipNTP;
+const INTERVAL_NTP = 1000 * configClientNTP.intervalNTP; // seconds 1
+const INTERVAL_PERIODO = 1000 * configClientNTP.intervalPeriodo;  //seconds 120
+const INTERVAL_ENVIO_HEARTBEAT = 1000 * config.intervalEnvioHeartbeat;
+const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
+const i = total = configClientNTP.cantOffsetsNTP;
+let offsetHora = 0;
+let offsetAvg = 0;
 
 // TODO LIST:
 // -x Agregar la cola de envio de mensajes de cada tópico que se maneja
@@ -62,11 +73,17 @@ let colaMensajesPorTopico = {}; // key = topico, value = cola de mensajes ordena
 {
 	// ambos sockets van a ser modo servidor, ya que los publicadores y suscriptores de nuestro sistema, los clientes, se conectaran al broker (y no al revés)
 	
-	
+	initClientNTP();
 	initSubSocket();
 	initPubSocket();
 	
 	initRepSocket();
+	let mensaje1 = {
+		mensaje: 'hola',
+		fecha: '2020-11-27T19:13:20',
+		emisor: 'fer'
+	}
+	colaMensajesPorTopico = {topico: [mensaje1]}
 
 	validarTiempoExpiracionMensajes();
 }
@@ -74,15 +91,19 @@ let colaMensajesPorTopico = {}; // key = topico, value = cola de mensajes ordena
 
 function validarTiempoExpiracionMensajes() {
 	setInterval(function () {
+		//se usa la key, para poder conocer la posicion de la cola en la lista
+		//sino hay un tema de referencias feas
+
 		// tomamos la cola de mensajes de cada topico
-		Object.values(colaMensajesPorTopico).forEach(colaMensajes => {
-
-			colaMensajes = colaMensajes.filter(mensaje => {
-				(new Date().getTime() - new Date(colaMensajes[i].fecha).getTime() <= MAX_DIF_TIEMPO_MENSAJE);
+		Object.keys(colaMensajesPorTopico).forEach(key => {
+			console.log(colaMensajesPorTopico[key]);
+			colaMensajesPorTopico[key] = colaMensajesPorTopico[key].filter(mensaje => 
+				(new Date(getTimeNTP()).getTime() - new Date(mensaje.fecha).getTime() <= MAX_DIF_TIEMPO_MENSAJE)
 				// solo dejamos mensajes que tengan menor diferencia de fecha con la actual a la permitida
-			}
+			
 			);
-
+			console.log(new Date(getTimeNTP()).getTime());
+			console.log(colaMensajesPorTopico[key]);
 		});
 	}, INTERVALO_VERIF_EXP_MSJ);
 }
@@ -270,7 +291,77 @@ function compararMensajesPorFecha(mensaje1,mensaje2){
 	return 0;
 }
 
+//////////////////////////////////////////////////////////////////////////////////////
+//                                CLIENT (BROKER) NTP                               //                                        
+//////////////////////////////////////////////////////////////////////////////////////
 
+function getTimeNTP(){
+    var dateObj = Date.now();
+
+    // Add 3 days to the current date & time
+    //   I'd suggest using the calculated static value instead of doing inline math
+    //   I did it this way to simply show where the number came from
+    dateObj += offsetHora;
+
+	// create a new Date object, using the adjusted time
+	//console.log(Date(dateObj).toISOString());
+    return new Date(dateObj).toISOString();    
+}
+
+function enviarTiemposNTP(){
+    let idIntervalo = setInterval(function () {
+      if (i--) {
+      //Calculo cada offset, en un intervalo determinado
+          let T1 = (new Date()).getTime();
+          let mensaje = {
+              t1: T1.toISOString(), 
+          }
+          client.write(JSON.stringify(mensaje));
+      } 
+      else {
+      //Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
+          clearInterval(idIntervalo);
+          console.log('Delay promedio: ' + offsetAvg + 'ms');
+          offsetHora = offsetAvg;
+      }
+    }, INTERVAL_NTP);
+  }
+
+function initClientNTP(){
+	let client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
+    client.on('data', function (data) {
+        
+        let T4 = new Date(new Date().toISOString()).getTime();
+    
+        // obtenemos hora del servidor
+        let T1 = new Date(data.t1).getTime();
+        let T2 = new Date(data.t2).getTime();
+        let T3 = new Date(data.t3).getTime();
+    
+        // calculamos delay de la red
+        // var delay = ((T2 - T1) + (T4 - T3)) / 2;
+        let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
+        offsetAvg += offsetDelNTP/total;
+        
+    
+        console.log('offset red:\t\t' + offsetDelNTP + ' ms');
+        console.log('---------------------------------------------------');
+    });
+    
+}
+
+
+function sincronizacionNTP(){
+    //Espera 2 minutos antes de enviar una nueva peticion al servidor NTP
+    setInterval(function () {
+        enviarTiemposNTP();
+    }, INTERVAL_PERIODO);      
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+//                                      NTP                                         //                                        
+//////////////////////////////////////////////////////////////////////////////////////
 
 
 
