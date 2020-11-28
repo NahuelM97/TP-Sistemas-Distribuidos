@@ -6,7 +6,14 @@ const globals = require('../Global/Globals');
 let config = require('./configBroker.json');
 let configClientNTP = require('../Global/configClientNTP.json');
 const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals');
-console.log(config);
+
+
+
+
+// DEBUG_MODE
+const DEBUG_MODE = true;
+
+
 
 // TODO - Sacar estos datos de un archivo JSON
 const brokerIp = config.ip;
@@ -39,7 +46,7 @@ const INTERVAL_NTP = 1000 * configClientNTP.intervalNTP; // seconds 1
 const INTERVAL_PERIODO = 1000 * configClientNTP.intervalPeriodo;  //seconds 120
 const INTERVAL_ENVIO_HEARTBEAT = 1000 * config.intervalEnvioHeartbeat;
 const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
-const i = total = configClientNTP.cantOffsetsNTP;
+let i = total = configClientNTP.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
 
@@ -96,14 +103,11 @@ function validarTiempoExpiracionMensajes() {
 
 		// tomamos la cola de mensajes de cada topico
 		Object.keys(colaMensajesPorTopico).forEach(key => {
-			console.log(colaMensajesPorTopico[key]);
 			colaMensajesPorTopico[key] = colaMensajesPorTopico[key].filter(mensaje => 
 				(new Date(getTimeNTP()).getTime() - new Date(mensaje.fecha).getTime() <= MAX_DIF_TIEMPO_MENSAJE)
 				// solo dejamos mensajes que tengan menor diferencia de fecha con la actual a la permitida
 			
 			);
-			console.log(new Date(getTimeNTP()).getTime());
-			console.log(colaMensajesPorTopico[key]);
 		});
 	}, INTERVALO_VERIF_EXP_MSJ);
 }
@@ -116,10 +120,10 @@ function initPubSocket() {
 		let topicSinHeader = topic.toString().substring(1);
 		if (colaMensajesPorTopico.hasOwnProperty(topicSinHeader)) { // el topico es valido QAOP
 			xsubSocket.send(topic); // el broker se suscribe a ese topico para poder recibir mensajes de sus publicadores 
-			console.log(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
+			debugConsoleLog(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
 
 		} else { // le pidieron publicar en un topico que no administra
-			console.log(`Error 1239123: Suscripcion a un topico invalido: ${topicSinHeader}`);
+			debugConsoleLog(`Error 1239123: Suscripcion a un topico invalido: ${topicSinHeader}`);
 		}
 
 	})
@@ -133,11 +137,11 @@ function initSubSocket() {
 	xsubSocket.on('message', function (topic, message) {
 		
 		if (colaMensajesPorTopico.hasOwnProperty(topic)) { // el topico es valido 
-			console.log(` LLEGO MSJ -> - topico: ${topic}, mensaje: ${message}`);
+			debugConsoleLog(` LLEGO MSJ -> - topico: ${topic}, mensaje: ${message}`);
 			procesaMensaje(topic, message);
 		}
 		else {
-			console.log(` DROPEANDO MSJ -> no hay topico valido - topico: ${topic}, mensaje: ${message}`);
+			debugConsoleLog(` DROPEANDO MSJ -> no hay topico valido - topico: ${topic}, mensaje: ${message}`);
         }
 	});
 
@@ -174,7 +178,7 @@ function procesaMensaje(topico, mensajeJSON) {
 // el mensaje cumple con las condiciones de la cola
 function publicarMensajeValido(topico, mensaje) {
 	xpubSocket.send([topico, mensaje]) // distribucion del mensaje a suscriptores
-	console.log(` REDIRIGIENDO MSJ topico: ${topico}, mensaje: ${mensaje}`);
+	debugConsoleLog(` REDIRIGIENDO MSJ topico: ${topico}, mensaje: ${mensaje}`);
 }
 
 
@@ -205,7 +209,7 @@ function cbRep(requestJSON){
 
 			repSocket.send(JSON.stringify(mensaje));
 
-			console.log(`Asignaron el topico ${requestJSON}`);
+			debugConsoleLog(`Asignaron el topico ${requestJSON}`);
 			break;
 
 		//SERVIDOR HTTP
@@ -221,7 +225,7 @@ function cbRep(requestJSON){
 
 			repSocket.send(JSON.stringify(mensaje));
 
-			console.log(`Solicitaron los topicos`);
+			debugConsoleLog(`Solicitaron los topicos`);
 			break;
 
 		case globals.COD_GET_MENSAJES_COLA:
@@ -240,7 +244,7 @@ function cbRep(requestJSON){
 
 			repSocket.send(JSON.stringify(mensaje));
 
-			console.log(`Solicitaron los mensajes del topico ${topico}`);
+			debugConsoleLog(`Solicitaron los mensajes del topico ${topico}`);
 			break;
 
 		case globals.COD_BORRAR_MENSAJES:
@@ -256,14 +260,14 @@ function cbRep(requestJSON){
 			
 			}
 
-			console.log(`Solicitaron borrar la cola de mensajes del topico ${topico}`);
+			debugConsoleLog(`Solicitaron borrar la cola de mensajes del topico ${topico}`);
 			break;
 
 		default:
 			mensaje = globals.generarRespuestaNoExitosa(request.accion, request.idPeticion, globals.COD_ERROR_OPERACION_INEXISTENTE, 'El codigo de operacion ingresado no se reconoce como un codigo valido');
 			repSocket.send(JSON.stringify(mensaje));
 
-			console.log(`Error ${request.error.codigo}: ${request.error.mensaje}`);
+			debugConsoleLog(`Error ${request.error.codigo}: ${request.error.mensaje}`);
 			break;
 	}
 	
@@ -304,26 +308,26 @@ function getTimeNTP(){
     dateObj += offsetHora;
 
 	// create a new Date object, using the adjusted time
-	//console.log(Date(dateObj).toISOString());
+	//debugConsoleLog(Date(dateObj).toISOString());
     return new Date(dateObj).toISOString();    
 }
 
 function enviarTiemposNTP(){
     let idIntervalo = setInterval(function () {
-      if (i--) {
-      //Calculo cada offset, en un intervalo determinado
-          let T1 = (new Date()).getTime();
-          let mensaje = {
-              t1: T1.toISOString(), 
-          }
-          client.write(JSON.stringify(mensaje));
-      } 
-      else {
-      //Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
-          clearInterval(idIntervalo);
-          console.log('Delay promedio: ' + offsetAvg + 'ms');
-          offsetHora = offsetAvg;
-      }
+      	if (i--) {
+      		//Calculo cada offset, en un intervalo determinado
+			let T1 = new Date();
+			let mensaje = {
+				t1: T1.toISOString(), 
+			}
+			client.write(JSON.stringify(mensaje));
+     	} 
+		else {
+		//Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
+			clearInterval(idIntervalo);
+			debugConsoleLog('Delay promedio: ' + offsetAvg + 'ms');
+			offsetHora = offsetAvg;
+		}
     }, INTERVAL_NTP);
   }
 
@@ -344,8 +348,8 @@ function initClientNTP(){
         offsetAvg += offsetDelNTP/total;
         
     
-        console.log('offset red:\t\t' + offsetDelNTP + ' ms');
-        console.log('---------------------------------------------------');
+        debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
+        debugConsoleLog('---------------------------------------------------');
     });
     
 }
@@ -360,8 +364,14 @@ function sincronizacionNTP(){
 
 
 //////////////////////////////////////////////////////////////////////////////////////
-//                                      NTP                                         //                                        
+//                                      /NTP                                         //                                        
 //////////////////////////////////////////////////////////////////////////////////////
 
 
 
+
+function debugConsoleLog(message) {
+    if(DEBUG_MODE) {
+        console.log(message);
+    }
+}
