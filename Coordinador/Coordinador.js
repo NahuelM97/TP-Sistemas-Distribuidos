@@ -128,16 +128,17 @@ function cbBrokerAceptoTopico(responseJSON) { //Cuando el broker responde la sol
     // Respuesta exitosa
     if (response && response.exito) {
         if (pendingRequests.hasOwnProperty(response.idPeticion)) {
-            let topico = pendingRequests[response.idPeticion].requestDelCliente.topico;
+            let requestDeCliente = pendingRequests[response.idPeticion].requestDelCliente;
+            let topico = requestDeCliente.topico;
             let idBroker = pendingRequests[response.idPeticion].idBroker;
             topicoIdBroker[topico] = idBroker;
             contadorTopicosPorBroker[idBroker]++;
             //nadie lo tiene, se lo asignamos a alguien        
             
            
-            switch (pendingRequests[response.idPeticion].requestDelCliente.accion) {
+            switch (requestDeCliente.accion) {
                 case globals.COD_PUB:
-                    enviarBrokerSegunTopicoExistente(topico);
+                    enviarBrokerSegunTopicoExistente(requestDeCliente);
                     break;
                 case globals.COD_ALTA_SUB:
                     enviarTriplaTopicosSubACliente(response.idPeticion);
@@ -187,21 +188,21 @@ function getIdBrokerMenosTopicos() {
 
 // Envia respuesta al cliente del broker, del topico solicitado porque ya estaba asignado a un broker
 // le dice a un cliente donde publicar
-function enviarBrokerSegunTopicoExistente(respuestaDelBroker){
-    let brokerEnviar = brokerIpPuerto[topicoIdBroker[respuestaDelBroker.topico]];
-    let puertoEnviado = respuestaDelBroker.accion == COD_PUB? brokerEnviar.puertoSub : brokerEnviar.puertoPub;
+function enviarBrokerSegunTopicoExistente(solicitudDeCliente){
+    let brokerEnviar = brokerIpPuerto[topicoIdBroker[solicitudDeCliente.topico]];
+    let puertoEnviado = solicitudDeCliente.accion == COD_PUB? brokerEnviar.puertoSub : brokerEnviar.puertoPub;
     debugConsoleLog("Voy a enviar el puerto " + puertoEnviado);
     let resultados = { 
         datosBroker: [
             {
-                topico: respuestaDelBroker.topico,
-                ip:  brokerIpPuerto[topicoIdBroker[respuestaDelBroker.topico]].ip,
+                topico: solicitudDeCliente.topico,
+                ip:  brokerIpPuerto[topicoIdBroker[solicitudDeCliente.topico]].ip,
                 puerto: puertoEnviado,
             }
         ],
     };
    
-    let respuestaAlCliente = globals.generarRespuestaExitosa(respuestaDelBroker.accion,respuestaDelBroker.idPeticion,resultados);
+    let respuestaAlCliente = globals.generarRespuestaExitosa(solicitudDeCliente.accion,solicitudDeCliente.idPeticion,resultados);
 
 
     repSocket.send(JSON.stringify(respuestaAlCliente));
