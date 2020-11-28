@@ -67,7 +67,7 @@ function init(myUsername) {// PP
 }
 
 function initClient() {
-    reqSocket.on('message', cbRespuestaCoordinador);             
+    reqSocket.on('message', cbRespuestaCoordinador);
     subSocket.on('message', cbProcesaMensajeRecibido);
     pubSocket.on('connectj', cbConnectPub);
     reqSocket.connect(`tcp://${coordinadorIP}:${coordinadorPuerto}`);
@@ -81,54 +81,52 @@ function initClient() {
 
 
     //Le envia al coordinador la peticion de ip:puerto para publicar heartbeats
-    intentaPublicar("",HEARTBEAT_TOPIC_NAME);
+    intentaPublicar("", HEARTBEAT_TOPIC_NAME);
     intervalHeartbeat = setInterval(cbIntervalHeartbeat, INTERVAL_ENVIO_HEARTBEAT);
-    
+
 }
 
-function cbIntervalHeartbeat(){
-    intentaPublicar("",HEARTBEAT_TOPIC_NAME);
+function cbIntervalHeartbeat() {
+    intentaPublicar("", HEARTBEAT_TOPIC_NAME);
 }
 
-function solicitarBrokerSubACoordinador(mensajeReq){
-    pendingRequests[mensajeReq.idPeticion] = mensajeReq; 
+function solicitarBrokerSubACoordinador(mensajeReq) {
+    pendingRequests[mensajeReq.idPeticion] = mensajeReq;
     socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
 }
 
 //Dado un mensaje, realiza el envio por subSocket
 //  el mensaje es guardado en pendingRequest, para cuando el coordinador nos responda
 //  podamos saber que queriamos mandar y que topico
-function solicitarBrokerPubACoordinador(mensajeReq, mensajePub){
-    pendingRequests[mensajeReq.idPeticion] = mensajeReq;  
+function solicitarBrokerPubACoordinador(mensajeReq, mensajePub) {
+    pendingRequests[mensajeReq.idPeticion] = mensajeReq;
     pendingPublications[mensajeReq.idPeticion] = mensajePub;
     socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
 }
 
-function conectarseParaPub(ipPuerto){
-    if(!conexiones.includes(ipPuerto)){
+function conectarseParaPub(ipPuerto) {
+    if (!conexiones.includes(ipPuerto)) {
         pubSocket.connect(`tcp://${ipPuerto}`);
         conexiones.push(ipPuerto);
     }
 }
 
 //Dado un mensaje, realiza el envio por pubSocket
-function publicaEnBroker(mensaje, topico){
-    let mensajePub = [topico,JSON.stringify(mensaje)];
+function publicaEnBroker(mensaje, topico) {
+    let mensajePub = [topico, JSON.stringify(mensaje)];
     socketSendMessage(pubSocket, mensajePub);
 }
 
 //Dado un socket y un mensaje, realiza el socket.send()
-function socketSendMessage(socket, mensaje){
+function socketSendMessage(socket, mensaje) {
     // Se guarda en pending requests el envío
-    if(mensaje != null)
-    {   
+    if (mensaje != null) {
         //pendingRequests[mensaje.idPeticion] = mensaje;     
-        
+
         debugConsoleLog(`Se realiza envio: ${JSON.stringify(mensaje)}`);
         socket.send(mensaje);
     }
-    else
-    {
+    else {
         console.error('Mensaje sin idPeticion no pudo ser enviado');
     }
 }
@@ -137,73 +135,73 @@ function socketSendMessage(socket, mensaje){
 //                               <CLIENT NTP>                                       //                                        
 //////////////////////////////////////////////////////////////////////////////////////
 function enviarTiemposNTP() {
-	let idIntervalo = setInterval(function () {
-		if (i--) {
-			//Calculo cada offset, en un intervalo determinado
-			let T1 = new Date();
-			let mensaje = {
-				t1: T1.toISOString(),
-			}
-			clientNTP.write(JSON.stringify(mensaje));
-		}
-		else {
-			//Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
-			clearInterval(idIntervalo);
-			debugConsoleLog('Delay promedio: ' + offsetAvg + 'ms');
-			offsetHora = offsetAvg;
-			i = configClientNTP.cantOffsetsNTP;
-		}
-	}, INTERVAL_NTP);
+    let idIntervalo = setInterval(function () {
+        if (i--) {
+            //Calculo cada offset, en un intervalo determinado
+            let T1 = new Date();
+            let mensaje = {
+                t1: T1.toISOString(),
+            }
+            clientNTP.write(JSON.stringify(mensaje));
+        }
+        else {
+            //Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
+            clearInterval(idIntervalo);
+            debugConsoleLog('Delay promedio: ' + offsetAvg + 'ms');
+            offsetHora = offsetAvg;
+            i = configClientNTP.cantOffsetsNTP;
+        }
+    }, INTERVAL_NTP);
 }
 
 function initClientNTP() {
-	clientNTP = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
-	clientNTP.on('data', function (dataJSON) {
-		let data = JSON.parse(dataJSON);
-		let T4 = new Date().getTime();
+    clientNTP = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
+    clientNTP.on('data', function (dataJSON) {
+        let data = JSON.parse(dataJSON);
+        let T4 = new Date().getTime();
 
-		// obtenemos hora del servidor
-		let T1 = new Date(data.t1).getTime();
-		let T2 = new Date(data.t2).getTime();
-		let T3 = new Date(data.t3).getTime();
+        // obtenemos hora del servidor
+        let T1 = new Date(data.t1).getTime();
+        let T2 = new Date(data.t2).getTime();
+        let T3 = new Date(data.t3).getTime();
 
-		// calculamos delay de la red
-		// var delay = ((T2 - T1) + (T4 - T3)) / 2;
-		let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
-		offsetAvg += offsetDelNTP / total;
+        // calculamos delay de la red
+        // var delay = ((T2 - T1) + (T4 - T3)) / 2;
+        let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
+        offsetAvg += offsetDelNTP / total;
 
 
-		debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
-		debugConsoleLog('---------------------------------------------------');
-	});
+        debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
+        debugConsoleLog('---------------------------------------------------');
+    });
 
 }
 
 
 function sincronizacionNTP() {
-	//Espera 2 minutos antes de enviar una nueva peticion al servidor NTP
-	setInterval(function () {
-		enviarTiemposNTP();
-		debugConsoleLog('Sincronizacion de tiempo NTP Comenzada')
-	}, INTERVAL_PERIODO);
+    //Espera 2 minutos antes de enviar una nueva peticion al servidor NTP
+    setInterval(function () {
+        enviarTiemposNTP();
+        debugConsoleLog('Sincronizacion de tiempo NTP Comenzada')
+    }, INTERVAL_PERIODO);
 }
 
 //sector terminar bien las conexiones TCP
 process.on('SIGHUP', function () {
-	console.log('Cerrando broker');
-	endClientNTP();
+    console.log('Cerrando broker');
+    endClientNTP();
 
 });
 
 process.on('SIGINT', function () {
-	console.log('Cerrando broker');
-	endClientNTP();
+    console.log('Cerrando broker');
+    endClientNTP();
 
 });
 
 async function endClientNTP() {
-	await clientNTP.end();
-	clientNTP.on('end', () => process.exit());
+    await clientNTP.end();
+    clientNTP.on('end', () => process.exit());
 }
 
 
@@ -221,14 +219,14 @@ async function endClientNTP() {
 //  - Si tiene el ip:puerto almacenado del broker, publica
 //  - Sino, le envia una solicitud al coordinador para obtener esos datos
 //30faab00-2339-4e57-928a-b78cabb4af6c
-function intentaPublicar(contenido,topico){
+function intentaPublicar(contenido, topico) {
     //Si tengo la ubicacion del topico (broker) guardada, lo envio
     let mensajePub = {
         emisor: userId,
         mensaje: contenido,
         fecha: getTimeNTP()
-    } 
-    if(topicoIpPuertoPub.hasOwnProperty(topico)){ 
+    }
+    if (topicoIpPuertoPub.hasOwnProperty(topico)) {
         publicaEnBroker(mensajePub, topico);
     } else { //Si no lo tengo, se lo pido al coordinador
         let mensajeReq = {
@@ -237,7 +235,7 @@ function intentaPublicar(contenido,topico){
             topico: topico
         }
         solicitarBrokerPubACoordinador(mensajeReq, mensajePub);
-        
+
     }
 }
 
@@ -247,7 +245,7 @@ function intentaPublicar(contenido,topico){
 //////////////////////////////////////////////////////////////////////////////////////
 
 //esta funcion devuelve el tiempo actual, ya corregido con el offset obtenido por NTP
-function getTimeNTP(){
+function getTimeNTP() {
     let milisActual = new Date().getTime();
 
     // Add 3 days to the current date & time
@@ -256,33 +254,33 @@ function getTimeNTP(){
     milisActual += offsetHora;
 
     // create a new Date object, using the adjusted time
-    return new Date(milisActual).toISOString();    
+    return new Date(milisActual).toISOString();
 }
 
 // TODO: Adaptar nuevo formato
-function suscribirseABroker(brokers){
+function suscribirseABroker(brokers) {
     brokers.forEach(broker => {
         let ipPuerto = `${broker.ip}:${broker.puerto}`;
-        subSocket.connect(`tcp://${ipPuerto.toString()}`);  
+        subSocket.connect(`tcp://${ipPuerto.toString()}`);
         subSocket.subscribe(broker.topico);
-        
+
         debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
-        
+
     })
 }
 //El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
 
 //Con globals.COD1: Es porque quiero publicar en un topico por primera vez
 //Con globals.COD2: Se ejecuta cuando se vuelve a conectar o se conecta por primera vez el cliente (triple msj)
-function cbRespuestaCoordinador(replyJSON) { 
+function cbRespuestaCoordinador(replyJSON) {
 
-    
+
     debugConsoleLog('Recibi mensaje del coordinador');
 
     let reply = JSON.parse(replyJSON);
     debugConsoleLog("Received reply : [" + replyJSON + ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
 
-    if(reply && reply.exito) {
+    if (reply && reply.exito) {
         switch (reply.accion) {
             case globals.COD_PUB:
 
@@ -293,30 +291,30 @@ function cbRespuestaCoordinador(replyJSON) {
                 //!!!MUY FEO: DEPENDE DE LA RED, HARDWARE TODO!!!!
                 //TODO
                 setTimeout(() => {
-                    
+
                     //conseguir el mensaje y topico que queriamos enviar
                     let mensaje = pendingPublications[reply.idPeticion];
-                    let topico = pendingRequests[reply.idPeticion].topico; 
+                    let topico = pendingRequests[reply.idPeticion].topico;
                     topicoIpPuertoPub[topico] = ipPuerto;
-                    publicaEnBroker(mensaje,topico);
+                    publicaEnBroker(mensaje, topico);
 
                 }, 200);
-                
+
                 //====SI EL CONNECT ES BLOQUEANTE, PODEMOS PONER ESTO DE ABAJO===
                 //====      SINO, PONERLO EN EL CALLBACK DEL CONNECT          ===
-                
-                
+
+
                 //conseguir el mensaje y topico que queriamos enviar
                 // let mensaje = pendingPublications[reply.idPeticion];
                 // let topico = pendingRequests[reply.idPeticion].topico; 
                 // topicoIpPuertoPub[topico] = ipPuerto;
                 // publicaEnBroker(mensaje,topico);
-                
-               
+
+
                 break;
-            case globals.COD_ALTA_SUB: 
+            case globals.COD_ALTA_SUB:
                 //Fer: A este metodo le pondria conectarseASub
-                suscribirseABroker(reply.resultados.datosBroker);                
+                suscribirseABroker(reply.resultados.datosBroker);
                 break;
             default:
                 console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
@@ -329,50 +327,58 @@ function cbRespuestaCoordinador(replyJSON) {
 }
 
 
-function cbConnectPub(){
+function cbConnectPub() {
     let mensaje = pendingPublications[reply.idPeticion];
-    let topico = pendingRequests[reply.idPeticion].topico; 
+    let topico = pendingRequests[reply.idPeticion].topico;
     topicoIpPuertoPub[topico] = ipPuerto;
-    publicaEnBroker(mensaje,topico);
+    publicaEnBroker(mensaje, topico);
 }
 
 // Llega un mensaje nuevo a un tópico al que estoy suscrito
-function cbProcesaMensajeRecibido(topic, message) {
+function cbProcesaMensajeRecibido(topic, messageJSON) {
+    let message = JSON.parse(messageJSON);
     if (topic == HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
         //actualizo el tiempo de conexion de alguien
         clientesUltimoHeartBeat[message.emisor] = message.fecha;
+        debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
     }
     else {
         debugConsoleLog('Recibio mensaje de topico:', topic.toString(), ' - ', message.toString());
-        
-        let mensajeParsed = JSON.parse(message);
-        mostrarMensajeInterfaz(getFormattedMessage(mensajeParsed));
+
+        mostrarMensajeInterfaz(getFormattedMessage(message));
     }
 }
 
-function getFormattedMessage(mensaje){
+function getFormattedMessage(mensaje) {
     let formattedFecha = getFormattedDate(mensaje.fecha);
     return `${formattedFecha} - ${mensaje.emisor}: ${mensaje.mensaje}`;
 }
 
-function getFormattedDate(date){
+function getFormattedDate(date) {
     let fecha = new Date(date);
     let formattedDay = fecha.getDay().toString().length == 1 ? "0" + fecha.getDay() : fecha.getDay(); // Si el día no empieza en 0 se lo agrega
     let formattedMonth = fecha.getMonth().toString().length == 1 ? "0" + fecha.getMonth() : fecha.getMonth(); // Si el mes no empieza en 0 se lo agrega
     let formattedHours = fecha.getHours().toString().length == 1 ? "0" + fecha.getHours() : fecha.getHours();
     let formattedMinutes = fecha.getMinutes().toString().length == 1 ? "0" + fecha.getMinutes() : fecha.getMinutes();
-    let formattedFecha = formattedDay + '/' + formattedMonth + '/' + fecha.getFullYear() + ' ' + formattedHours + ':' + formattedMinutes;
+    let formattedSeconds = fecha.getSeconds().toString().length == 1 ? "0" + fecha.getSeconds() : fecha.getSeconds();
+    let formattedMs = fecha.getMilliseconds().toString().length == 1 ? "00" + fecha.getMilliseconds() : (fecha.getMilliseconds().toString().length == 2 ? "0" + fecha.getMilliseconds() : fecha.getMilliseconds());
+    let formattedFecha = formattedDay + '/' + formattedMonth + '/' + fecha.getFullYear() + ' ' + formattedHours + ':' + formattedMinutes + ':' + formattedSeconds + '.' + formattedMs;
     return formattedFecha;
 }
 
 
 // Precondicion: está registrado en clientesUltimoHeartbeat
 function isUserOnline(user) {
-    getTimeNTP() - clientesUltimoHeartBeat[user].getTime() <=  ONLINE_TOLERANCE;
+    const msNTP = new Date(getTimeNTP()).getTime();
+    const msHeartbeat = new Date(clientesUltimoHeartBeat[user]).getTime();
+
+    debugConsoleLog(`El user es ${user}, y la diferencia da ${msNTP - msHeartbeat}`)
+    return msNTP - msHeartbeat <= ONLINE_TOLERANCE;
+
 }
 
 function debugConsoleLog(message) {
-    if(DEBUG_MODE) {
+    if (DEBUG_MODE) {
         console.log(message);
     }
 }
@@ -390,24 +396,24 @@ function mostrarMensajeInterfaz(message) {
 / ****************************************************************************/
 
 function enviarMensajeAll(contenido) {
-    intentaPublicar(contenido,MESSAGE_TOPIC_PREFIX+'/all');
+    intentaPublicar(contenido, MESSAGE_TOPIC_PREFIX + '/all');
     return 'Mensaje de difusión enviado';
 }
 
-function enviarMensajeGrupo(contenido,idGrupo) {
-    intentaPublicar(contenido,GROUP_TOPIC_PREFIX+'/'+idGrupo);
+function enviarMensajeGrupo(contenido, idGrupo) {
+    intentaPublicar(contenido, GROUP_TOPIC_PREFIX + '/' + idGrupo);
     return 'Mensaje enviado al grupo ' + idGrupo;
 }
 
-function enviarMensajeUsuario(contenido,idUsuario) {
-    if (!clientesUltimoHeartBeat.hasOwnProperty[idUsuario]) {
+function enviarMensajeUsuario(contenido, idUsuario) {
+    if (!clientesUltimoHeartBeat.hasOwnProperty(idUsuario)) {//ETOP
         return 'Se ha intentado enviar un mensaje a un usuario que no está registrado.';
     }
     if (!isUserOnline(idUsuario)) {
         return 'El usuario no está en línea.';
     }
     else {
-        intentaPublicar(contenido,MESSAGE_TOPIC_PREFIX+'/'+idUsuario);
+        intentaPublicar(contenido, MESSAGE_TOPIC_PREFIX + '/' + idUsuario);
         return 'Mensaje enviado al usuario ' + idUsuario;
     }
 }
@@ -424,10 +430,10 @@ function suscripcionAGrupo(idGrupo) {
 
 
 module.exports = {
-	// funciones
-    enviarMensajeAll:enviarMensajeAll,
-    enviarMensajeGrupo:enviarMensajeGrupo,
-    enviarMensajeUsuario:enviarMensajeUsuario,
-    suscripcionAGrupo:suscripcionAGrupo,
-    init:init
+    // funciones
+    enviarMensajeAll: enviarMensajeAll,
+    enviarMensajeGrupo: enviarMensajeGrupo,
+    enviarMensajeUsuario: enviarMensajeUsuario,
+    suscripcionAGrupo: suscripcionAGrupo,
+    init: init
 }
