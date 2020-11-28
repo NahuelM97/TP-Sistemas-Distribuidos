@@ -7,7 +7,7 @@ const globals = require('../Global/Globals');
 
 
 // DEBUG_MODE
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 
 // socket to talk to clients
@@ -190,6 +190,7 @@ function getIdBrokerMenosTopicos() {
 function enviarBrokerSegunTopicoExistente(respuestaDelBroker){
     let brokerEnviar = brokerIpPuerto[topicoIdBroker[respuestaDelBroker.topico]];
     let puertoEnviado = respuestaDelBroker.accion == COD_PUB? brokerEnviar.puertoSub : brokerEnviar.puertoPub;
+    debugConsoleLog("Voy a enviar el puerto " + puertoEnviado);
     let resultados = { 
         datosBroker: [
             {

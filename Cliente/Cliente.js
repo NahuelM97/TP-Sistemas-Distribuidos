@@ -22,6 +22,7 @@ let coordinadorPuerto = config.coordinadorPuerto;
 //SERVER NTP
 const net = require('net');
 const { REPL_MODE_STRICT } = require('repl');
+const { Console } = require('console');
 
 const portNTP = configClientNTP.portNTP;
 const NTP_IP = configClientNTP.ipNTP;
@@ -29,7 +30,7 @@ const INTERVAL_NTP = 1000 * configClientNTP.intervalNTP; // seconds 1
 const INTERVAL_PERIODO = 1000 * configClientNTP.intervalPeriodo;  //seconds 120
 const INTERVAL_ENVIO_HEARTBEAT = 1000 * config.intervalEnvioHeartbeat;
 const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
-const i = total = configClientNTP.cantOffsetsNTP;
+let i = total = configClientNTP.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
 
@@ -54,6 +55,9 @@ var pendingRequests = {};
 //
 // *La fecha no se guarda, porque se calcula y se guarda antes de enviar el mensaje
 var pendingPublications = {};
+
+// Guardamos todas las conexiones abiertas para evitar hacer connect a ippuerto que ya nos conectamos
+let conexiones = [];
 
 function init(myUsername) {// PP
     userId = myUsername;
@@ -100,7 +104,10 @@ function solicitarBrokerPubACoordinador(mensajeReq, mensajePub){
 }
 
 function conectarseParaPub(ipPuerto){
-    pubSocket.connect(`tcp://${ipPuerto}`);
+    if(!conexiones.includes(ipPuerto)){
+        pubSocket.connect(`tcp://${ipPuerto}`);
+        conexiones.push(ipPuerto);
+    }
 }
 
 //Dado un mensaje, realiza el envio por pubSocket
@@ -148,7 +155,7 @@ function enviarTiemposNTP(){
   }
 
 function initClientNTP(){
-    let client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
+    var client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
     client.on('data', function (data) {
         
         let T4 = new Date(new Date().toISOString()).getTime();
@@ -237,6 +244,8 @@ function suscribirseABroker(brokers){
         subSocket.connect(`tcp://${ipPuerto.toString()}`);  
         subSocket.subscribe(broker.topico);
         
+        debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
+        
     })
 }
 //El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
@@ -249,7 +258,7 @@ function cbRespuestaCoordinador(replyJSON) {
     debugConsoleLog('Recibi mensaje del coordinador');
 
     let reply = JSON.parse(replyJSON);
-    debugConsoleLog("Received reply : [", reply, ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
+    debugConsoleLog("Received reply : [" + replyJSON + ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
 
     if(reply && reply.exito) {
         switch (reply.accion) {
@@ -307,20 +316,21 @@ function cbConnectPub(){
 
 // Llega un mensaje nuevo a un tópico al que estoy suscrito
 function cbProcesaMensajeRecibido(topic, message) {
-    if (topic = HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
+    if (topic == HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
         //actualizo el tiempo de conexion de alguien
         clientesUltimoHeartBeat[message.emisor] = message.fecha;
     }
     else {
         debugConsoleLog('Recibio mensaje de topico:', topic.toString(), ' - ', message.toString());
         
-        mostrarMensajeInterfaz(getFormattedMessage(mensaje));
+        let mensajeParsed = JSON.parse(message);
+        mostrarMensajeInterfaz(getFormattedMessage(mensajeParsed));
     }
 }
 
 function getFormattedMessage(mensaje){
     let formattedFecha = getFormattedDate(mensaje.fecha);
-    return `${formattedFecha} - ${mensaje.emisor}: ${mensaje.mensaje}`
+    return `${formattedFecha} - ${mensaje.emisor}: ${mensaje.mensaje}`;
 }
 
 function getFormattedDate(date){
@@ -347,7 +357,7 @@ function debugConsoleLog(message) {
 
 // Importante: esto se muestra directamente en la interfaz de usuario. No debe llamarse a este método por nada que no sea algo que deba ser visto por el usuario
 function mostrarMensajeInterfaz(message) {
-    console.log(message);
+    process.stdout.write(`\n\n${message}\n\nWASAP\\${userId}>`);
 }
 
 
