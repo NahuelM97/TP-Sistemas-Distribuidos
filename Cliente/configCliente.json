@@ -1,11 +1,6 @@
 {
     "coordinadorIP": "127.0.0.1",
     "coordinadorPuerto": 1234,
-    "portNTP": 4444,
-    "ipNTP": "127.0.0.1",
-    "intervalNTP": 1,
-    "intervalPeriodo": 120,
-    "cantOffsetsNTP": 10,
     "onlineTolerance": 30,
     "intervalEnvioHeartbeat": 10,
     "toleranciaCliente": 30

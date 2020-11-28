@@ -46,9 +46,11 @@ const INTERVAL_NTP = 1000 * configClientNTP.intervalNTP; // seconds 1
 const INTERVAL_PERIODO = 1000 * configClientNTP.intervalPeriodo;  //seconds 120
 const INTERVAL_ENVIO_HEARTBEAT = 1000 * config.intervalEnvioHeartbeat;
 const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
-let i = total = configClientNTP.cantOffsetsNTP;
+let i = configClientNTP.cantOffsetsNTP;
+const total = configClientNTP.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
+let clientNTP;
 
 // TODO LIST:
 // -x Agregar la cola de envio de mensajes de cada tópico que se maneja
@@ -79,18 +81,18 @@ let offsetAvg = 0;
 
 {
 	// ambos sockets van a ser modo servidor, ya que los publicadores y suscriptores de nuestro sistema, los clientes, se conectaran al broker (y no al revés)
-	
+
 	initClientNTP();
 	initSubSocket();
 	initPubSocket();
-	
+
 	initRepSocket();
 	let mensaje1 = {
 		mensaje: 'hola',
 		fecha: '2020-11-27T19:13:20',
 		emisor: 'fer'
 	}
-	colaMensajesPorTopico = {topico: [mensaje1]}
+	colaMensajesPorTopico = { topico: [mensaje1] }
 
 	validarTiempoExpiracionMensajes();
 }
@@ -103,10 +105,10 @@ function validarTiempoExpiracionMensajes() {
 
 		// tomamos la cola de mensajes de cada topico
 		Object.keys(colaMensajesPorTopico).forEach(key => {
-			colaMensajesPorTopico[key] = colaMensajesPorTopico[key].filter(mensaje => 
+			colaMensajesPorTopico[key] = colaMensajesPorTopico[key].filter(mensaje =>
 				(new Date(getTimeNTP()).getTime() - new Date(mensaje.fecha).getTime() <= MAX_DIF_TIEMPO_MENSAJE)
 				// solo dejamos mensajes que tengan menor diferencia de fecha con la actual a la permitida
-			
+
 			);
 		});
 	}, INTERVALO_VERIF_EXP_MSJ);
@@ -135,14 +137,14 @@ function initPubSocket() {
 function initSubSocket() {
 	// se conectan los publicadores para que su mensaje sea redirigido a los suscriptores
 	xsubSocket.on('message', function (topic, message) {
-		
+
 		if (colaMensajesPorTopico.hasOwnProperty(topic)) { // el topico es valido 
 			debugConsoleLog(` LLEGO MSJ -> - topico: ${topic}, mensaje: ${message}`);
 			procesaMensaje(topic, message);
 		}
 		else {
 			debugConsoleLog(` DROPEANDO MSJ -> no hay topico valido - topico: ${topic}, mensaje: ${message}`);
-        }
+		}
 	});
 
 	xsubSocket.bindSync(`tcp://${brokerIp}:${BROKER_SUB_PORT}`) //si un cliente quiere publicar se comunica con este
@@ -154,11 +156,11 @@ function procesaMensaje(topico, mensajeJSON) {
 	let colaMensajes = colaMensajesPorTopico[topico];
 	let mensaje = JSON.parse(mensajeJSON);
 	if (colaMensajes.length === 0 || mensaje.fecha > colaMensajes[0].fecha) { // el mensaje cumple la condicion de la cola
-		
+
 		colaMensajes.push(mensaje);
 		colaMensajes.sort(compararMensajesPorFecha); // ordenar por fecha
 
-		if (colaMensajes.length > MAX_MENSAJES_COLA) { 
+		if (colaMensajes.length > MAX_MENSAJES_COLA) {
 			colaMensajes.pop(0); // saca al mensaje mas antiguo
 		}
 
@@ -190,9 +192,9 @@ function initRepSocket() {
 
 
 // se ejecuta cuando me llega una request del coordinador o el server HTTP
-function cbRep(requestJSON){
+function cbRep(requestJSON) {
 	let request = JSON.parse(requestJSON);
-	
+
 
 	let topico = request.topico;
 	let mensaje;
@@ -202,7 +204,7 @@ function cbRep(requestJSON){
 		case globals.COD_ADD_TOPICO_BROKER:
 			if (!colaMensajesPorTopico.hasOwnProperty(topico)) { // le piden administrar a un topico que no administraba
 				agregarColaMensajes(topico);
-            }
+			}
 
 			mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, {});
 			// los resultados van vacíos porque el coord ya sabe ip y puertos del broker
@@ -217,7 +219,7 @@ function cbRep(requestJSON){
 			let topicos = globals.getKeys(colaMensajesPorTopico);
 
 			let resultados = {
-				listaTopicos:topicos // ['topico1','topico2',...]
+				listaTopicos: topicos // ['topico1','topico2',...]
 			};
 
 			mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, resultados);
@@ -229,15 +231,15 @@ function cbRep(requestJSON){
 			break;
 
 		case globals.COD_GET_MENSAJES_COLA:
-			
-			if (colaMensajesPorTopico.hasOwnProperty(topico)) { 
+
+			if (colaMensajesPorTopico.hasOwnProperty(topico)) {
 				//manda cola de mensajes de ese topico
 				let resultados = {
 					mensajes: colaMensajesPorTopico[topico] // ['mensaje1','mensaje2',...]
 				};
 				mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, resultados);
 			}
-			else{
+			else {
 				//no maneja ese topico -> manda rta con codigo de error
 				mensaje = globals.generarRespuestaNoExitosa(request.accion, request.idPeticion, globals.COD_ERROR_TOPICO_INEXISTENTE, `El topico ${topico} no es administrado por este broker`);
 			}
@@ -248,16 +250,16 @@ function cbRep(requestJSON){
 			break;
 
 		case globals.COD_BORRAR_MENSAJES:
-			if (colaMensajesPorTopico.hasOwnProperty(topico)) { 
+			if (colaMensajesPorTopico.hasOwnProperty(topico)) {
 				//borra los mensajes de ese topico porque lo administraba
 				borrarColaMensajesTopico(topico);
 				let resultados = {};
 				mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, resultados);
 			}
-			else{
+			else {
 				//no maneja ese topico -> no borra mensajes
 				mensaje = globals.generarRespuestaNoExitosa(request.accion, request.idPeticion, globals.COD_ERROR_TOPICO_INEXISTENTE, `El topico ${topico} no es administrado por este broker`);
-			
+
 			}
 
 			debugConsoleLog(`Solicitaron borrar la cola de mensajes del topico ${topico}`);
@@ -270,7 +272,7 @@ function cbRep(requestJSON){
 			debugConsoleLog(`Error ${request.error.codigo}: ${request.error.mensaje}`);
 			break;
 	}
-	
+
 }
 
 // dado un topico crea su cola de mensajes
@@ -279,12 +281,12 @@ function agregarColaMensajes(topico) {
 }
 
 // dado un topico borra el contenido de su cola de mensajes
-function borrarColaMensajesTopico(topico){
+function borrarColaMensajesTopico(topico) {
 	colaMensajesPorTopico[topico] = [];
 }
 
 
-function compararMensajesPorFecha(mensaje1,mensaje2){
+function compararMensajesPorFecha(mensaje1, mensaje2) {
 	if (mensaje1.fecha < mensaje2.fecha) {
 		return -1;
 	}
@@ -299,67 +301,89 @@ function compararMensajesPorFecha(mensaje1,mensaje2){
 //                                CLIENT (BROKER) NTP                               //                                        
 //////////////////////////////////////////////////////////////////////////////////////
 
+//esta funcion devuelve el tiempo actual, ya corregido con el offset obtenido por NTP
 function getTimeNTP(){
-    var dateObj = Date.now();
+    let milisActual = new Date().getTime();
 
     // Add 3 days to the current date & time
     //   I'd suggest using the calculated static value instead of doing inline math
     //   I did it this way to simply show where the number came from
-    dateObj += offsetHora;
+    milisActual += offsetHora;
 
-	// create a new Date object, using the adjusted time
-	//debugConsoleLog(Date(dateObj).toISOString());
-    return new Date(dateObj).toISOString();    
+    // create a new Date object, using the adjusted time
+    return new Date(milisActual).toISOString();    
 }
 
-function enviarTiemposNTP(){
-    let idIntervalo = setInterval(function () {
-      	if (i--) {
-      		//Calculo cada offset, en un intervalo determinado
+function enviarTiemposNTP() {
+	let idIntervalo = setInterval(function () {
+		if (i--) {
+			//Calculo cada offset, en un intervalo determinado
 			let T1 = new Date();
 			let mensaje = {
-				t1: T1.toISOString(), 
+				t1: T1.toISOString(),
 			}
-			client.write(JSON.stringify(mensaje));
-     	} 
+			clientNTP.write(JSON.stringify(mensaje));
+		}
 		else {
-		//Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
+			//Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
 			clearInterval(idIntervalo);
 			debugConsoleLog('Delay promedio: ' + offsetAvg + 'ms');
 			offsetHora = offsetAvg;
+			i = configClientNTP.cantOffsetsNTP;
 		}
-    }, INTERVAL_NTP);
-  }
+	}, INTERVAL_NTP);
+}
 
-function initClientNTP(){
-	var client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
-    client.on('data', function (data) {
-        
-        let T4 = new Date(new Date().toISOString()).getTime();
-    
-        // obtenemos hora del servidor
-        let T1 = new Date(data.t1).getTime();
-        let T2 = new Date(data.t2).getTime();
-        let T3 = new Date(data.t3).getTime();
-    
-        // calculamos delay de la red
-        // var delay = ((T2 - T1) + (T4 - T3)) / 2;
-        let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
-        offsetAvg += offsetDelNTP/total;
-        
-    
-        debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
-        debugConsoleLog('---------------------------------------------------');
-    });
-    
+function initClientNTP() {
+	clientNTP = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
+	clientNTP.on('data', function (dataJSON) {
+		let data = JSON.parse(dataJSON);
+		let T4 = new Date().getTime();
+
+		// obtenemos hora del servidor
+		let T1 = new Date(data.t1).getTime();
+		let T2 = new Date(data.t2).getTime();
+		let T3 = new Date(data.t3).getTime();
+
+		// calculamos delay de la red
+		// var delay = ((T2 - T1) + (T4 - T3)) / 2;
+		let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
+		offsetAvg += offsetDelNTP / total;
+
+
+		debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
+		debugConsoleLog('---------------------------------------------------');
+	});
+
 }
 
 
-function sincronizacionNTP(){
-    //Espera 2 minutos antes de enviar una nueva peticion al servidor NTP
-    setInterval(function () {
-        enviarTiemposNTP();
-    }, INTERVAL_PERIODO);      
+function sincronizacionNTP() {
+	//Espera 2 minutos antes de enviar una nueva peticion al servidor NTP
+	setInterval(function () {
+		enviarTiemposNTP();
+		debugConsoleLog('Sincronizacion de tiempo NTP Comenzada')
+	}, INTERVAL_PERIODO);
+}
+
+
+//sector cerrar bien las conexiones TCP
+
+process.on('SIGHUP', function () {
+	console.log('Cerrando broker');
+	endClientNTP();
+
+});
+
+process.on('SIGINT', function () {
+	console.log('Cerrando broker');
+	endClientNTP();
+
+});
+
+async function endClientNTP() {
+	await clientNTP.end();
+	clientNTP.on('end', () => process.exit());
 }
 
 
@@ -371,7 +395,7 @@ function sincronizacionNTP(){
 
 
 function debugConsoleLog(message) {
-    if(DEBUG_MODE) {
-        console.log(message);
-    }
+	if (DEBUG_MODE) {
+		console.log(message);
+	}
 }
