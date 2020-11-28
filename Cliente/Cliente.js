@@ -1,9 +1,8 @@
 var zmq = require('../zeromq/node_modules/zeromq')
-    , pubSocket = zmq.socket('pub')
-    , subSocket = zmq.socket('sub')
-    , reqSocket = zmq.socket('req');
+    , subSocket = zmq.socket('sub');
 
 const globals = require('../Global/Globals');
+const pub = require('../Publicador/pub');
 
 let config = require('./configCliente.json');
 let configClientNTP = require('../Global/configClientNTP.json');
@@ -23,6 +22,7 @@ let coordinadorPuerto = config.coordinadorPuerto;
 const net = require('net');
 const { REPL_MODE_STRICT } = require('repl');
 const { Console } = require('console');
+const { initReq } = require('../Publicador/pub');
 
 const portNTP = configClientNTP.portNTP;
 const NTP_IP = configClientNTP.ipNTP;
@@ -45,21 +45,6 @@ var clientesUltimoHeartBeat = {};
 let topicoIpPuertoPub = {};
 
 
-//Es un clave:valor
-//    - clave: idPeticion
-//    - valor: { idPeticion: globals.generateUUID(), accion: globals.COD_PUB, topico: topico }
-var pendingRequests = {};
-
-//Es un clave:valor
-//    - clave: idPeticion (mismo que en pendingRequest)
-//    - valor: {idPeticion: globals.generateUUID(),emisor: userId, mensaje: contenido, fecha: *}
-//
-// *La fecha no se guarda, porque se calcula y se guarda antes de enviar el mensaje
-var pendingPublications = {};
-
-// Guardamos todas las conexiones abiertas para evitar hacer connect a ippuerto que ya nos conectamos
-let conexiones = [];
-
 function init(myUsername) {// PP
     userId = myUsername;
     initClient();
@@ -67,10 +52,8 @@ function init(myUsername) {// PP
 }
 
 function initClient() {
-    reqSocket.on('message', cbRespuestaCoordinador);
+    initReq(coordinadorIP,coordinadorPuerto,cbRespuestaCoordinador);
     subSocket.on('message', cbProcesaMensajeRecibido);
-    pubSocket.on('connectj', cbConnectPub);
-    reqSocket.connect(`tcp://${coordinadorIP}:${coordinadorPuerto}`);
     var messageInicial = {
         idPeticion: globals.generateUUID(),
         accion: globals.COD_ALTA_SUB,
@@ -91,44 +74,8 @@ function cbIntervalHeartbeat() {
 }
 
 function solicitarBrokerSubACoordinador(mensajeReq) {
-    pendingRequests[mensajeReq.idPeticion] = mensajeReq;
-    socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
-}
-
-//Dado un mensaje, realiza el envio por subSocket
-//  el mensaje es guardado en pendingRequest, para cuando el coordinador nos responda
-//  podamos saber que queriamos mandar y que topico
-function solicitarBrokerPubACoordinador(mensajeReq, mensajePub) {
-    pendingRequests[mensajeReq.idPeticion] = mensajeReq;
-    pendingPublications[mensajeReq.idPeticion] = mensajePub;
-    socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
-}
-
-function conectarseParaPub(ipPuerto) {
-    if (!conexiones.includes(ipPuerto)) {
-        pubSocket.connect(`tcp://${ipPuerto}`);
-        conexiones.push(ipPuerto);
-    }
-}
-
-//Dado un mensaje, realiza el envio por pubSocket
-function publicaEnBroker(mensaje, topico) {
-    let mensajePub = [topico, JSON.stringify(mensaje)];
-    socketSendMessage(pubSocket, mensajePub);
-}
-
-//Dado un socket y un mensaje, realiza el socket.send()
-function socketSendMessage(socket, mensaje) {
-    // Se guarda en pending requests el envío
-    if (mensaje != null) {
-        //pendingRequests[mensaje.idPeticion] = mensaje;     
-
-        debugConsoleLog(`Se realiza envio: ${JSON.stringify(mensaje)}`);
-        socket.send(mensaje);
-    }
-    else {
-        console.error('Mensaje sin idPeticion no pudo ser enviado');
-    }
+    pub.pendingRequests[mensajeReq.idPeticion] = mensajeReq;
+    pub.socketSendMessage(pub.reqSocket, JSON.stringify(mensajeReq));
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
@@ -221,21 +168,27 @@ async function endClientNTP() {
 //30faab00-2339-4e57-928a-b78cabb4af6c
 function intentaPublicar(contenido, topico) {
     //Si tengo la ubicacion del topico (broker) guardada, lo envio
-    let mensajePub = {
-        emisor: userId,
-        mensaje: contenido,
-        fecha: getTimeNTP()
-    }
-    if (topicoIpPuertoPub.hasOwnProperty(topico)) {
-        publicaEnBroker(mensajePub, topico);
-    } else { //Si no lo tengo, se lo pido al coordinador
-        let mensajeReq = {
-            idPeticion: globals.generateUUID(),
-            accion: globals.COD_PUB,
-            topico: topico
-        }
-        solicitarBrokerPubACoordinador(mensajeReq, mensajePub);
+    pub.intentaPublicarNuevoMensaje(contenido, topico, getTimeNTP());
+}
 
+function conectarseParaPub(ipPuerto) {
+    pub.conectarseParaPub(ipPuerto);
+}
+
+//Dado un mensaje, realiza el envio por pubSocket
+function publicaEnBroker(mensaje, topico) {
+    pub.publicaEnBroker(mensaje,topico);
+}
+
+//Dado un socket y un mensaje, realiza el socket.send()
+function socketSendMessage(socket, mensaje) {
+    // Se guarda en pending requests el envío
+    if (mensaje != null) {
+        debugConsoleLog(`Se realiza envio: ${JSON.stringify(mensaje)}`);
+        socket.send(mensaje);
+    }
+    else {
+        console.error('Mensaje sin idPeticion no pudo ser enviado');
     }
 }
 
@@ -248,12 +201,8 @@ function intentaPublicar(contenido, topico) {
 function getTimeNTP() {
     let milisActual = new Date().getTime();
 
-    // Add 3 days to the current date & time
-    //   I'd suggest using the calculated static value instead of doing inline math
-    //   I did it this way to simply show where the number came from
     milisActual += offsetHora;
-
-    // create a new Date object, using the adjusted time
+    
     return new Date(milisActual).toISOString();
 }
 
@@ -274,7 +223,6 @@ function suscribirseABroker(brokers) {
 //Con globals.COD2: Se ejecuta cuando se vuelve a conectar o se conecta por primera vez el cliente (triple msj)
 function cbRespuestaCoordinador(replyJSON) {
 
-
     debugConsoleLog('Recibi mensaje del coordinador');
 
     let reply = JSON.parse(replyJSON);
@@ -283,37 +231,9 @@ function cbRespuestaCoordinador(replyJSON) {
     if (reply && reply.exito) {
         switch (reply.accion) {
             case globals.COD_PUB:
-
-                let broker = reply.resultados.datosBroker[0];
-                let ipPuerto = `${broker.ip}:${broker.puerto}`;
-                conectarseParaPub(ipPuerto);
-
-                //!!!MUY FEO: DEPENDE DE LA RED, HARDWARE TODO!!!!
-                //TODO
-                setTimeout(() => {
-
-                    //conseguir el mensaje y topico que queriamos enviar
-                    let mensaje = pendingPublications[reply.idPeticion];
-                    let topico = pendingRequests[reply.idPeticion].topico;
-                    topicoIpPuertoPub[topico] = ipPuerto;
-                    publicaEnBroker(mensaje, topico);
-
-                }, 200);
-
-                //====SI EL CONNECT ES BLOQUEANTE, PODEMOS PONER ESTO DE ABAJO===
-                //====      SINO, PONERLO EN EL CALLBACK DEL CONNECT          ===
-
-
-                //conseguir el mensaje y topico que queriamos enviar
-                // let mensaje = pendingPublications[reply.idPeticion];
-                // let topico = pendingRequests[reply.idPeticion].topico; 
-                // topicoIpPuertoPub[topico] = ipPuerto;
-                // publicaEnBroker(mensaje,topico);
-
-
+                pub.enviarMensajePendiente(reply);
                 break;
             case globals.COD_ALTA_SUB:
-                //Fer: A este metodo le pondria conectarseASub
                 suscribirseABroker(reply.resultados.datosBroker);
                 break;
             default:
@@ -324,14 +244,6 @@ function cbRespuestaCoordinador(replyJSON) {
     else {
         console.error("Respuesta sin exito: " + reply.error.codigo + ' - ' + reply.error.mensaje);
     }
-}
-
-
-function cbConnectPub() {
-    let mensaje = pendingPublications[reply.idPeticion];
-    let topico = pendingRequests[reply.idPeticion].topico;
-    topicoIpPuertoPub[topico] = ipPuerto;
-    publicaEnBroker(mensaje, topico);
 }
 
 // Llega un mensaje nuevo a un tópico al que estoy suscrito

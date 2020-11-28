@@ -6,5 +6,8 @@
     "reqPort": 3003,
     "maxMensajesCola": 15,
     "maxDifTiempoMensaje": 30,
-    "intervaloVerifExpMsj": 5
+    "intervaloVerifExpMsj": 5,
+    "coordinadorIP": "127.0.0.1",
+    "coordinadorPuerto": 1234
+
 }

@@ -1,7 +1,10 @@
 // broker.js
 const zmq = require('../zeromq/node_modules/zeromq');
 
+var subSocket = zmq.socket('sub')
+
 const globals = require('../Global/Globals');
+const pub = require('../Publicador/pub');
 
 let config = require('./configBroker.json');
 let configClientNTP = require('../Global/configClientNTP.json');
@@ -11,7 +14,7 @@ const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals');
 
 
 // DEBUG_MODE
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 
 
@@ -44,13 +47,19 @@ const portNTP = configClientNTP.portNTP;
 const NTP_IP = configClientNTP.ipNTP;
 const INTERVAL_NTP = 1000 * configClientNTP.intervalNTP; // seconds 1
 const INTERVAL_PERIODO = 1000 * configClientNTP.intervalPeriodo;  //seconds 120
-const INTERVAL_ENVIO_HEARTBEAT = 1000 * config.intervalEnvioHeartbeat;
 const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
 let i = configClientNTP.cantOffsetsNTP;
 const total = configClientNTP.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
 let clientNTP;
+
+const coordinadorIP = config.coordinadorIP;
+const coordinadorPuerto = config.coordinadorPuerto;
+
+//para verificar al momento de que se conecte alguien (para saber si es reconeccion)
+var msClientesUltimoHeartBeat = {};
+
 
 // TODO LIST:
 // -x Agregar la cola de envio de mensajes de cada tópico que se maneja
@@ -83,17 +92,10 @@ let clientNTP;
 	// ambos sockets van a ser modo servidor, ya que los publicadores y suscriptores de nuestro sistema, los clientes, se conectaran al broker (y no al revés)
 
 	initClientNTP();
-	initSubSocket();
-	initPubSocket();
+	initXSubSocket();
+	initXPubSocket();
 
 	initRepSocket();
-	let mensaje1 = {
-		mensaje: 'hola',
-		fecha: '2020-11-27T19:13:20',
-		emisor: 'fer'
-	}
-	colaMensajesPorTopico = { topico: [mensaje1] }
-
 	validarTiempoExpiracionMensajes();
 }
 
@@ -108,7 +110,6 @@ function validarTiempoExpiracionMensajes() {
 			colaMensajesPorTopico[key] = colaMensajesPorTopico[key].filter(mensaje =>
 				(new Date(getTimeNTP()).getTime() - new Date(mensaje.fecha).getTime() <= MAX_DIF_TIEMPO_MENSAJE)
 				// solo dejamos mensajes que tengan menor diferencia de fecha con la actual a la permitida
-
 			);
 		});
 	}, INTERVALO_VERIF_EXP_MSJ);
@@ -116,7 +117,7 @@ function validarTiempoExpiracionMensajes() {
 
 
 // inicializa el socket para recibir publicaciones y mandarlas a clientes a traves del subSocket
-function initPubSocket() {
+function initXPubSocket() {
 	// se conectan los suscriptores esperando recibir mensajes
 	xpubSocket.on('message', function (topic) {
 		let topicSinHeader = topic.toString().substring(1);
@@ -124,17 +125,23 @@ function initPubSocket() {
 			xsubSocket.send(topic); // el broker se suscribe a ese topico para poder recibir mensajes de sus publicadores 
 			debugConsoleLog(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
 
-		} else { // le pidieron publicar en un topico que no administra
+			//le mandamos la cola del topico correspondiente
+			if(topic.startWith('message/') && topicSinHeader != 'message/all'){ //se suscribio un user a su propio topico
+				colaMensajesPorTopico[topicSinHeader].forEach((message) => {
+					publicarMensajeValido(topic,message);
+				});
+			} //else{} es heartbeat,grupo o message/all
+		}
+		else { // le pidieron publicar en un topico que no administra
 			debugConsoleLog(`Error 1239123: Suscripcion a un topico invalido: ${topicSinHeader}`);
 		}
-
 	})
 
 	xpubSocket.bindSync(`tcp://${brokerIp}:${BROKER_PUB_PORT}`) //si un cliente quiere escuchar se suscribe a este
 }
 
 // inicializa el socket para mandar lo que se publica a los clientes
-function initSubSocket() {
+function initXSubSocket() {
 	// se conectan los publicadores para que su mensaje sea redirigido a los suscriptores
 	xsubSocket.on('message', function (topic, message) {
 
@@ -161,9 +168,8 @@ function procesaMensaje(topico, mensajeJSON) {
 		colaMensajes.sort(compararMensajesPorFecha); // ordenar por fecha
 
 		if (colaMensajes.length > MAX_MENSAJES_COLA) {
-			colaMensajes.pop(0); // saca al mensaje mas antiguo
+			colaMensajes.shift(); // saca al mensaje mas antiguo
 		}
-
 		colaMensajesPorTopico[topico] = colaMensajes; // actualizamos la cola de mensajes de ese topico
 
 		publicarMensajeValido(topico, mensajeJSON);
@@ -175,8 +181,6 @@ function procesaMensaje(topico, mensajeJSON) {
 }
 
 
-
-
 // el mensaje cumple con las condiciones de la cola
 function publicarMensajeValido(topico, mensaje) {
 	xpubSocket.send([topico, mensaje]) // distribucion del mensaje a suscriptores
@@ -186,13 +190,13 @@ function publicarMensajeValido(topico, mensaje) {
 
 // inicializa el socket para responder peticiones del coordinador o el servidor HTTP
 function initRepSocket() {
-	repSocket.on('message', cbRep);
+	repSocket.on('message', cbRespondeSolicitud);
 	repSocket.bind(`tcp://${brokerIp}:${BROKER_REP_PORT}`);
 }
 
 
 // se ejecuta cuando me llega una request del coordinador o el server HTTP
-function cbRep(requestJSON) {
+function cbRespondeSolicitud(requestJSON) {
 	let request = JSON.parse(requestJSON);
 
 
@@ -204,6 +208,13 @@ function cbRep(requestJSON) {
 		case globals.COD_ADD_TOPICO_BROKER:
 			if (!colaMensajesPorTopico.hasOwnProperty(topico)) { // le piden administrar a un topico que no administraba
 				agregarColaMensajes(topico);
+
+				if(topico == 'message/all'){ //suscribirme a heartbeat
+
+					//solicito a coordinador el heartbeat para suscribirme
+					initSocketsClienteReconectado();
+					subSocket.subscribe();
+				}
 			}
 
 			mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, {});
@@ -274,6 +285,77 @@ function cbRep(requestJSON) {
 	}
 
 }
+
+function initSocketsClienteReconectado(){
+	pub.initReq(coordinadorIP,coordinadorPuerto,cbRespuestaCoordinador);
+	initSubSocket();
+}
+
+function initSubSocket(){
+	subSocket.on('message', function(messageJSON){ //te llegan heartbeats
+		let message = JSON.parse(messageJSON);
+		if (topic == HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
+			//actualizo el tiempo de conexion de alguien
+			if(!msClientesUltimoHeartBeat.hasOwnProperty(message.emisor)){ //es la primera vez que se conecta (enviarle solo message/all)
+				msClientesUltimoHeartBeat[message.emisor] = new Date(message.fecha).getTime();
+			} else {
+				let msHeartbeatAnterior =  msClientesUltimoHeartBeat[message.emisor];
+				let msHeartbeatNuevo = new Date(message.fecha).getTime();
+				msClientesUltimoHeartBeat[message.emisor] = msHeartbeatNuevo;
+				if(msHeartbeatNuevo - msHeartbeatAnterior > TOLERANCIA_CLIENTE){ //estaba desconectado (se volvio a conectar)
+					//mandar cola message all
+
+					colaMensajesPorTopico['message/all'].forEach((mensajeDeCola)=>{
+						intentaPublicar(mensajeDeCola, 'message/'+message.emisor);
+					});
+
+				}
+			}
+			debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
+		} else { console.error("No puede llegar mensaje de un topico distinto de heartbeat, solo me suscribi a el")}
+	});
+}
+
+//El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
+
+//Con globals.COD1: Es porque quiero publicar en un topico por primera vez
+function cbRespuestaCoordinador(replyJSON) {
+
+    debugConsoleLog('Recibi mensaje del coordinador');
+
+    let reply = JSON.parse(replyJSON);
+    debugConsoleLog("Received reply : [" + replyJSON + ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
+
+    if (reply && reply.exito) {
+        if(reply.accion == globls.COD_PUB) {
+                pub.enviarMensajePendiente(reply);
+		} else {
+			console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
+		}
+    }
+    else {
+        console.error("Respuesta sin exito: " + reply.error.codigo + ' - ' + reply.error.mensaje);
+    }
+}
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+//                                      PUB                                         //                                        
+//////////////////////////////////////////////////////////////////////////////////////
+
+// Trata de enviar un mensaje en un topico (broker).
+//  - Si tiene el ip:puerto almacenado del broker, publica
+//  - Sino, le envia una solicitud al coordinador para obtener esos datos
+//30faab00-2339-4e57-928a-b78cabb4af6c
+function intentaPublicar(mensaje, topico) {
+	pub.intentaPublicarMensajeDeCola(mensaje,topico);
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+//                                    </PUB>                                        //                                        
+//////////////////////////////////////////////////////////////////////////////////////
 
 // dado un topico crea su cola de mensajes
 function agregarColaMensajes(topico) {
