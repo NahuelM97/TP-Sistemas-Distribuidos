@@ -33,6 +33,7 @@ const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
 let i = total = configClientNTP.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
+let clientNTP;
 
 const MESSAGE_TOPIC_PREFIX = 'message';
 const GROUP_TOPIC_PREFIX = 'group';
@@ -135,54 +136,74 @@ function socketSendMessage(socket, mensaje){
 //////////////////////////////////////////////////////////////////////////////////////
 //                               <CLIENT NTP>                                       //                                        
 //////////////////////////////////////////////////////////////////////////////////////
-function enviarTiemposNTP(){
-    let idIntervalo = setInterval(function () {
-        if (i--) {
-            //Calculo cada offset, en un intervalo determinado
-            let T1 = new Date();
-            let mensaje = {
-                t1: T1.toISOString(), 
-            }
-            client.write(JSON.stringify(mensaje));
-        } 
-        else {
-            //Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
-            clearInterval(idIntervalo);
-            debugConsoleLog('Delay promedio: ' + offsetAvg + 'ms');
-            offsetHora = offsetAvg;
-        }
-    }, INTERVAL_NTP);
-  }
+function enviarTiemposNTP() {
+	let idIntervalo = setInterval(function () {
+		if (i--) {
+			//Calculo cada offset, en un intervalo determinado
+			let T1 = new Date();
+			let mensaje = {
+				t1: T1.toISOString(),
+			}
+			clientNTP.write(JSON.stringify(mensaje));
+		}
+		else {
+			//Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
+			clearInterval(idIntervalo);
+			debugConsoleLog('Delay promedio: ' + offsetAvg + 'ms');
+			offsetHora = offsetAvg;
+			i = configClientNTP.cantOffsetsNTP;
+		}
+	}, INTERVAL_NTP);
+}
 
-function initClientNTP(){
-    var client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
-    client.on('data', function (data) {
-        
-        let T4 = new Date(new Date().toISOString()).getTime();
-    
-        // obtenemos hora del servidor
-        let T1 = new Date(data.t1).getTime();
-        let T2 = new Date(data.t2).getTime();
-        let T3 = new Date(data.t3).getTime();
-    
-        // calculamos delay de la red
-        // var delay = ((T2 - T1) + (T4 - T3)) / 2;
-        let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
-        offsetAvg += offsetDelNTP/total;
-        
-    
-        debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
-        debugConsoleLog('---------------------------------------------------');
-    });
-    
+function initClientNTP() {
+	clientNTP = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
+	clientNTP.on('data', function (dataJSON) {
+		let data = JSON.parse(dataJSON);
+		let T4 = new Date().getTime();
+
+		// obtenemos hora del servidor
+		let T1 = new Date(data.t1).getTime();
+		let T2 = new Date(data.t2).getTime();
+		let T3 = new Date(data.t3).getTime();
+
+		// calculamos delay de la red
+		// var delay = ((T2 - T1) + (T4 - T3)) / 2;
+		let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
+		offsetAvg += offsetDelNTP / total;
+
+
+		debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
+		debugConsoleLog('---------------------------------------------------');
+	});
+
 }
 
 
-function sincronizacionNTP(){
-    //Espera 2 minutos antes de enviar una nueva peticion al servidor NTP
-    setInterval(function () {
-        enviarTiemposNTP();
-    }, INTERVAL_PERIODO);      
+function sincronizacionNTP() {
+	//Espera 2 minutos antes de enviar una nueva peticion al servidor NTP
+	setInterval(function () {
+		enviarTiemposNTP();
+		debugConsoleLog('Sincronizacion de tiempo NTP Comenzada')
+	}, INTERVAL_PERIODO);
+}
+
+//sector terminar bien las conexiones TCP
+process.on('SIGHUP', function () {
+	console.log('Cerrando broker');
+	endClientNTP();
+
+});
+
+process.on('SIGINT', function () {
+	console.log('Cerrando broker');
+	endClientNTP();
+
+});
+
+async function endClientNTP() {
+	await clientNTP.end();
+	clientNTP.on('end', () => process.exit());
 }
 
 
@@ -222,19 +243,20 @@ function intentaPublicar(contenido,topico){
 
 
 //////////////////////////////////////////////////////////////////////////////////////
-//                                      PUB                                         //                                        
+//                                    </PUB>                                        //                                        
 //////////////////////////////////////////////////////////////////////////////////////
 
+//esta funcion devuelve el tiempo actual, ya corregido con el offset obtenido por NTP
 function getTimeNTP(){
-    var dateObj = Date.now();
+    let milisActual = new Date().getTime();
 
     // Add 3 days to the current date & time
     //   I'd suggest using the calculated static value instead of doing inline math
     //   I did it this way to simply show where the number came from
-    dateObj += offsetHora;
+    milisActual += offsetHora;
 
     // create a new Date object, using the adjusted time
-    return new Date(dateObj).toISOString();    
+    return new Date(milisActual).toISOString();    
 }
 
 // TODO: Adaptar nuevo formato
