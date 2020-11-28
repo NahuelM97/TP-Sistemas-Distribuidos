@@ -1,7 +1,11 @@
 const zmq = require('../zeromq/node_modules/zeromq');
+const globals = require('../Global/Globals');
+
 
 var pubSocket = zmq.socket('pub')
-, reqSocket = zmq.socket('req');
+, reqSocket = zmq.socket('req')
+, subSocket = zmq.socket('sub');
+
 
 //Es un clave:valor
 //    - clave: idPeticion
@@ -18,6 +22,9 @@ var pendingPublications = {};
 // Guardamos todas las conexiones abiertas para evitar hacer connect a ippuerto que ya nos conectamos
 let conexiones = [];
 
+let topicoIpPuertoPub = {};
+
+
 const DEBUG_MODE = false;
 
 
@@ -30,11 +37,62 @@ const DEBUG_MODE = false;
 //  - Sino, le envia una solicitud al coordinador para obtener esos datos
 //30faab00-2339-4e57-928a-b78cabb4af6c
 
-function initReq(ip,puerto, cbRespuestaCoordinador){
+function initReqSocket(ip,puerto){
     reqSocket.connect(`tcp://${ip}:${puerto}`);
     reqSocket.on('message', cbRespuestaCoordinador);
 }
-function intentaPublicarNuevoMensaje(contenido, topico, fechaActual) {
+
+
+// setea el callback
+function initCbSubSocket(cbProcesaMensajeRecibido){
+    subSocket.on('message', cbProcesaMensajeRecibido);
+}
+
+
+
+//El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
+
+//Con globals.COD1: Es porque quiero publicar en un topico por primera vez
+//Con globals.COD2: Se ejecuta cuando se vuelve a conectar o se conecta por primera vez el cliente (triple msj)
+function cbRespuestaCoordinador(replyJSON) {
+    debugConsoleLog('Recibi mensaje del coordinador');
+
+    let reply = JSON.parse(replyJSON);
+    debugConsoleLog("Received reply : [" + replyJSON + ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
+
+    if (reply && reply.exito) {
+        switch (reply.accion) {
+            case globals.COD_PUB:
+                enviarMensajePendiente(reply);
+                break;
+            case globals.COD_ALTA_SUB:
+                suscribirseABroker(reply.resultados.datosBroker);
+                break;
+            default:
+                console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
+                break;
+        }
+    }
+    else {
+        console.error("Respuesta sin exito: " + reply.error.codigo + ' - ' + reply.error.mensaje);
+    }
+}
+
+// TODO: Adaptar nuevo formato
+function suscribirseABroker(brokers) {
+    brokers.forEach(broker => {
+        let ipPuerto = `${broker.ip}:${broker.puerto}`;
+        subSocket.connect(`tcp://${ipPuerto.toString()}`);
+        subSocket.subscribe(broker.topico);
+
+        debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
+
+    })
+}
+
+
+
+function intentaPublicarNuevoMensaje(userId, contenido, topico, fechaActual) {
     //Si tengo la ubicacion del topico (broker) guardada, lo envio
     let mensajePub = {
         emisor: userId,
@@ -55,9 +113,12 @@ function intentaPublicarNuevoMensaje(contenido, topico, fechaActual) {
 }
 
 function intentaPublicarMensajeDeCola(mensaje, topico) {
-	//Si tengo la ubicacion del topico (broker) guardada, lo envio   
+    //Si tengo la ubicacion del topico (broker) guardada, lo envio  
+    console.log(topico.split('/')[1]); 
     if (topicoIpPuertoPub.hasOwnProperty(topico)) {
+        console.log('entra para publicar');
         publicaEnBroker(mensaje, topico);
+        
     } else { //Si no lo tengo, se lo pido al coordinador
         let mensajeReq = {
             idPeticion: globals.generateUUID(),
@@ -88,6 +149,7 @@ function conectarseParaPub(ipPuerto) {
 //Dado un mensaje, realiza el envio por pubSocket
 function publicaEnBroker(mensaje, topico) {
     let mensajePub = [topico, JSON.stringify(mensaje)];
+    console.log(mensajePub);
     socketSendMessage(pubSocket, mensajePub);
 }
 
@@ -124,6 +186,11 @@ function enviarMensajePendiente(reply){
     }, 200);
 }
 
+function solicitarBrokerSubACoordinador(mensajeReq) {
+    pendingRequests[mensajeReq.idPeticion] = mensajeReq;
+    socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
+}
+
 //////////////////////////////////////////////////////////////////////////////////////
 //                                    </PUB>                                        //                                        
 //////////////////////////////////////////////////////////////////////////////////////
@@ -139,14 +206,14 @@ module.exports = {
     //variables
     reqSocket: reqSocket,
     pendingPublications: pendingPublications,
-    pendingRequests: pendingRequests,
 
     // funciones
+    initReqSocket: initReqSocket,
     publicaEnBroker: publicaEnBroker,
     conectarseParaPub: conectarseParaPub,
-    socketSendMessage: socketSendMessage,
     intentaPublicarNuevoMensaje: intentaPublicarNuevoMensaje,
     intentaPublicarMensajeDeCola:intentaPublicarMensajeDeCola,
-    enviarMensajePendiente: enviarMensajePendiente,
-    initReq: initReq
+    solicitarBrokerSubACoordinador: solicitarBrokerSubACoordinador,
+    solicitarBrokerPubACoordinador: solicitarBrokerPubACoordinador,
+    initCbSubSocket: initCbSubSocket
 }

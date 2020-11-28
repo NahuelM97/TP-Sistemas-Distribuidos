@@ -57,8 +57,8 @@ function writer(unparsedInput){
         return commandAyuda();
     }
     if(command == COMMAND_CHAR +'SALIR'){
-        console.log('¡Adiós!');
-        return process.exit();
+        CLIENT.endClientNTP();
+        return '¡Adiós!';
     }
 
     // comandos que requieren LOGIN

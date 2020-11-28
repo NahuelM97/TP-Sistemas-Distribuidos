@@ -1,8 +1,6 @@
 // broker.js
 const zmq = require('../zeromq/node_modules/zeromq');
 
-var subSocket = zmq.socket('sub')
-
 const globals = require('../Global/Globals');
 const pub = require('../Publicador/pub');
 
@@ -14,7 +12,7 @@ const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals');
 
 
 // DEBUG_MODE
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 
 
 
@@ -30,6 +28,8 @@ const MAX_DIF_TIEMPO_MENSAJE = 1000 * config.maxDifTiempoMensaje; // en milisegu
 
 
 const INTERVALO_VERIF_EXP_MSJ = 1000 * config.intervaloVerifExpMsj; // cada cuanto tiempo se verifica el tiempo de expiracion de los mensajes en la cola de mensajes
+
+const HEARTBEAT_TOPIC_NAME = 'heartbeat';
 
 // definimos 2 sockets: el que escucha todos los mensajes entrantes (subSocket), y el que va a enviar los mensajes a destino (pubSocket)
 const xsubSocket = zmq.socket('xsub'),  // el broker escucha a todos los publisher
@@ -90,7 +90,7 @@ var msClientesUltimoHeartBeat = {};
 
 {
 	// ambos sockets van a ser modo servidor, ya que los publicadores y suscriptores de nuestro sistema, los clientes, se conectaran al broker (y no al revés)
-
+	
 	initClientNTP();
 	initXSubSocket();
 	initXPubSocket();
@@ -126,9 +126,11 @@ function initXPubSocket() {
 			debugConsoleLog(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
 
 			//le mandamos la cola del topico correspondiente
-			if(topic.startWith('message/') && topicSinHeader != 'message/all'){ //se suscribio un user a su propio topico
+			if(topicSinHeader.startsWith('message/') && topicSinHeader != 'message/all'){ //se suscribio un user a su propio topico
 				colaMensajesPorTopico[topicSinHeader].forEach((message) => {
-					publicarMensajeValido(topic,message);
+					console.log(`topico ${topicSinHeader}`);
+					console.log(message);
+					intentaPublicar(message, topicSinHeader); // publica con el pubSocket
 				});
 			} //else{} es heartbeat,grupo o message/all
 		}
@@ -213,8 +215,18 @@ function cbRespondeSolicitud(requestJSON) {
 
 					//solicito a coordinador el heartbeat para suscribirme
 					initSocketsClienteReconectado();
-					subSocket.subscribe();
+
+					
+					var messageInicial = {
+						idPeticion: globals.generateUUID(),
+						accion: globals.COD_ALTA_SUB,
+						topico: HEARTBEAT_TOPIC_NAME
+					};
+
+					pub.solicitarBrokerSubACoordinador(messageInicial);
 				}
+
+				debugConsoleLog(`Asignaron el topico ${requestJSON}`);
 			}
 
 			mensaje = globals.generarRespuestaExitosa(request.accion, request.idPeticion, {});
@@ -222,7 +234,7 @@ function cbRespondeSolicitud(requestJSON) {
 
 			repSocket.send(JSON.stringify(mensaje));
 
-			debugConsoleLog(`Asignaron el topico ${requestJSON}`);
+			
 			break;
 
 		//SERVIDOR HTTP
@@ -287,56 +299,41 @@ function cbRespondeSolicitud(requestJSON) {
 }
 
 function initSocketsClienteReconectado(){
-	pub.initReq(coordinadorIP,coordinadorPuerto,cbRespuestaCoordinador);
-	initSubSocket();
+	pub.initReqSocket(coordinadorIP,coordinadorPuerto);
+	pub.initCbSubSocket(cbProcesaMensajeRecibido);
 }
 
-function initSubSocket(){
-	subSocket.on('message', function(messageJSON){ //te llegan heartbeats
-		let message = JSON.parse(messageJSON);
-		if (topic == HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
-			//actualizo el tiempo de conexion de alguien
-			if(!msClientesUltimoHeartBeat.hasOwnProperty(message.emisor)){ //es la primera vez que se conecta (enviarle solo message/all)
-				msClientesUltimoHeartBeat[message.emisor] = new Date(message.fecha).getTime();
-			} else {
-				let msHeartbeatAnterior =  msClientesUltimoHeartBeat[message.emisor];
-				let msHeartbeatNuevo = new Date(message.fecha).getTime();
-				msClientesUltimoHeartBeat[message.emisor] = msHeartbeatNuevo;
-				if(msHeartbeatNuevo - msHeartbeatAnterior > TOLERANCIA_CLIENTE){ //estaba desconectado (se volvio a conectar)
-					//mandar cola message all
 
-					colaMensajesPorTopico['message/all'].forEach((mensajeDeCola)=>{
-						intentaPublicar(mensajeDeCola, 'message/'+message.emisor);
-					});
-
-				}
-			}
-			debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
-		} else { console.error("No puede llegar mensaje de un topico distinto de heartbeat, solo me suscribi a el")}
-	});
-}
-
-//El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
-
-//Con globals.COD1: Es porque quiero publicar en un topico por primera vez
-function cbRespuestaCoordinador(replyJSON) {
-
-    debugConsoleLog('Recibi mensaje del coordinador');
-
-    let reply = JSON.parse(replyJSON);
-    debugConsoleLog("Received reply : [" + replyJSON + ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
-
-    if (reply && reply.exito) {
-        if(reply.accion == globls.COD_PUB) {
-                pub.enviarMensajePendiente(reply);
+function cbProcesaMensajeRecibido(topic, messageJSON){ //te llegan heartbeats
+	let message = JSON.parse(messageJSON);
+	if (topic == HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
+		//actualizo el tiempo de conexion de alguien
+		if(!msClientesUltimoHeartBeat.hasOwnProperty(message.emisor)){ //es la primera vez que se conecta (enviarle solo message/all)
+			msClientesUltimoHeartBeat[message.emisor] = new Date(message.fecha).getTime();
+			
+			colaMensajesPorTopico['message/all'].forEach((mensajeDeCola)=>{
+				intentaPublicar(mensajeDeCola, 'message/'+message.emisor);
+			});
 		} else {
-			console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
+			let msHeartbeatAnterior =  msClientesUltimoHeartBeat[message.emisor];
+			let msHeartbeatNuevo = new Date(message.fecha).getTime();
+			msClientesUltimoHeartBeat[message.emisor] = msHeartbeatNuevo;
+			if(msHeartbeatNuevo - msHeartbeatAnterior > TOLERANCIA_CLIENTE){ //estaba desconectado (se volvio a conectar)
+				//mandar cola message all
+
+				colaMensajesPorTopico['message/all'].forEach((mensajeDeCola)=>{
+					intentaPublicar(mensajeDeCola, 'message/'+message.emisor);
+				});
+
+			}
 		}
-    }
-    else {
-        console.error("Respuesta sin exito: " + reply.error.codigo + ' - ' + reply.error.mensaje);
-    }
+		debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
+	} else { console.error("No puede llegar mensaje de un topico distinto de heartbeat, solo me suscribi a el")}
 }
+
+
+
+
 
 
 

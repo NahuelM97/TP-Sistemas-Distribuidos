@@ -1,5 +1,4 @@
-var zmq = require('../zeromq/node_modules/zeromq')
-    , subSocket = zmq.socket('sub');
+
 
 const globals = require('../Global/Globals');
 const pub = require('../Publicador/pub');
@@ -42,7 +41,7 @@ const HEARTBEAT_TOPIC_NAME = 'heartbeat';
 const ONLINE_TOLERANCE = 1000 * config.onlineTolerance; // 30 segundos como máximo es el tiempo sin heartbeat en que un usuario sigue siendo considerado como online
 
 var clientesUltimoHeartBeat = {};
-let topicoIpPuertoPub = {};
+
 
 
 function init(myUsername) {// PP
@@ -52,15 +51,15 @@ function init(myUsername) {// PP
 }
 
 function initClient() {
-    initReq(coordinadorIP,coordinadorPuerto,cbRespuestaCoordinador);
-    subSocket.on('message', cbProcesaMensajeRecibido);
+    pub.initReqSocket(coordinadorIP,coordinadorPuerto);
+    pub.initCbSubSocket(cbProcesaMensajeRecibido);
     var messageInicial = {
         idPeticion: globals.generateUUID(),
         accion: globals.COD_ALTA_SUB,
         topico: `${MESSAGE_TOPIC_PREFIX}/${userId}`
     };
     //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
-    solicitarBrokerSubACoordinador(messageInicial);
+    pub.solicitarBrokerSubACoordinador(messageInicial);
 
 
     //Le envia al coordinador la peticion de ip:puerto para publicar heartbeats
@@ -73,10 +72,6 @@ function cbIntervalHeartbeat() {
     intentaPublicar("", HEARTBEAT_TOPIC_NAME);
 }
 
-function solicitarBrokerSubACoordinador(mensajeReq) {
-    pub.pendingRequests[mensajeReq.idPeticion] = mensajeReq;
-    pub.socketSendMessage(pub.reqSocket, JSON.stringify(mensajeReq));
-}
 
 //////////////////////////////////////////////////////////////////////////////////////
 //                               <CLIENT NTP>                                       //                                        
@@ -168,28 +163,7 @@ async function endClientNTP() {
 //30faab00-2339-4e57-928a-b78cabb4af6c
 function intentaPublicar(contenido, topico) {
     //Si tengo la ubicacion del topico (broker) guardada, lo envio
-    pub.intentaPublicarNuevoMensaje(contenido, topico, getTimeNTP());
-}
-
-function conectarseParaPub(ipPuerto) {
-    pub.conectarseParaPub(ipPuerto);
-}
-
-//Dado un mensaje, realiza el envio por pubSocket
-function publicaEnBroker(mensaje, topico) {
-    pub.publicaEnBroker(mensaje,topico);
-}
-
-//Dado un socket y un mensaje, realiza el socket.send()
-function socketSendMessage(socket, mensaje) {
-    // Se guarda en pending requests el envío
-    if (mensaje != null) {
-        debugConsoleLog(`Se realiza envio: ${JSON.stringify(mensaje)}`);
-        socket.send(mensaje);
-    }
-    else {
-        console.error('Mensaje sin idPeticion no pudo ser enviado');
-    }
+    pub.intentaPublicarNuevoMensaje(userId, contenido, topico, getTimeNTP());
 }
 
 
@@ -206,45 +180,8 @@ function getTimeNTP() {
     return new Date(milisActual).toISOString();
 }
 
-// TODO: Adaptar nuevo formato
-function suscribirseABroker(brokers) {
-    brokers.forEach(broker => {
-        let ipPuerto = `${broker.ip}:${broker.puerto}`;
-        subSocket.connect(`tcp://${ipPuerto.toString()}`);
-        subSocket.subscribe(broker.topico);
 
-        debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
 
-    })
-}
-//El coordinador me envio Ip puerto broker (de cod 1 o cod 2)
-
-//Con globals.COD1: Es porque quiero publicar en un topico por primera vez
-//Con globals.COD2: Se ejecuta cuando se vuelve a conectar o se conecta por primera vez el cliente (triple msj)
-function cbRespuestaCoordinador(replyJSON) {
-
-    debugConsoleLog('Recibi mensaje del coordinador');
-
-    let reply = JSON.parse(replyJSON);
-    debugConsoleLog("Received reply : [" + replyJSON + ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
-
-    if (reply && reply.exito) {
-        switch (reply.accion) {
-            case globals.COD_PUB:
-                pub.enviarMensajePendiente(reply);
-                break;
-            case globals.COD_ALTA_SUB:
-                suscribirseABroker(reply.resultados.datosBroker);
-                break;
-            default:
-                console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
-                break;
-        }
-    }
-    else {
-        console.error("Respuesta sin exito: " + reply.error.codigo + ' - ' + reply.error.mensaje);
-    }
-}
 
 // Llega un mensaje nuevo a un tópico al que estoy suscrito
 function cbProcesaMensajeRecibido(topic, messageJSON) {
@@ -337,7 +274,7 @@ function suscripcionAGrupo(idGrupo) {
         topico: `${GROUP_TOPIC_PREFIX}/${idGrupo}`
     };
     //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
-    solicitarBrokerSubACoordinador(suscripcionAGrupo);
+    pub.solicitarBrokerSubACoordinador(suscripcionAGrupo);
 }
 
 
@@ -347,5 +284,6 @@ module.exports = {
     enviarMensajeGrupo: enviarMensajeGrupo,
     enviarMensajeUsuario: enviarMensajeUsuario,
     suscripcionAGrupo: suscripcionAGrupo,
+    endClientNTP: endClientNTP,
     init: init
 }
