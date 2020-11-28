@@ -4,6 +4,12 @@ const zmq = require('../zeromq/node_modules/zeromq');
 const { COD_ADD_TOPICO_BROKER, COD_ALTA_SUB, COD_PUB } = require('../Global/Globals');
 const globals = require('../Global/Globals');
 
+
+
+// DEBUG_MODE
+const DEBUG_MODE = true;
+
+
 // socket to talk to clients
 var repSocket = zmq.socket('rep');
 var reqSocket = zmq.socket('req');
@@ -87,7 +93,7 @@ function obtieneBrokerInicial(topico){
     reqSocketInit.send(JSON.stringify(requestAlBroker));
 
     
-    console.log('MANDE');
+    debugConsoleLog('MANDE');
 
     
 }
@@ -105,7 +111,7 @@ function cbSocketInit(responseJSON) {
         contadorTopicosPorBroker[idBrokerMenosTopicos]++;
         if (globals.getCantKeys(topicoIdBroker) == 2) { // ya se asignaron heartbeat y message/all a un broker.
             repSocket.bind(`tcp://${ipCoordinador}:${puertoCoordinador}`); // aca empieza a escuchar requests
-            console.log(`Escuchando a Clientes en: ${puertoCoordinador}`);
+            debugConsoleLog(`Escuchando a Clientes en: ${puertoCoordinador}`);
         } else {
             obtieneBrokerInicial('message/all');
         }
@@ -131,13 +137,13 @@ function cbBrokerAceptoTopico(responseJSON) { //Cuando el broker responde la sol
            
             switch (pendingRequests[response.idPeticion].requestDelCliente.accion) {
                 case globals.COD_PUB:
-                    enviarBrokerSegunTopicoExistente(topico, isPub);
+                    enviarBrokerSegunTopicoExistente(topico);
                     break;
                 case globals.COD_ALTA_SUB:
                     enviarTriplaTopicosSubACliente(response.idPeticion);
                     break;
                 default:
-                    console.log('Error 2515: Codigo de operacion invalido');
+                    debugConsoleLog('Error 2515: Codigo de operacion invalido');
             }
             delete pendingRequests[response.idPeticion]; //elimina porque la respuesta ya llego
         }
@@ -166,7 +172,7 @@ function cbRespondeRequestDeCliente(requestJSON) { //un cliente quiere saber don
             console.error("ERROR 4503: codigo binario no binario llegad esperado invalido de operacion en la solicitud");
         //algo salio mal esto no tendria que estar aca.
     }
-    console.log("Received request: [", request, "]");
+    debugConsoleLog("Received request: [", request, "]");
 }
 
 
@@ -224,7 +230,7 @@ function enviarAsignacionTopicoBroker(request){
     let broker = brokerIpPuerto[idBrokerMin];
     reqSocket.connect(`tcp://${broker.ip}:${broker.puertoRep}`); 
     reqSocket.send(JSON.stringify(requestAlBroker));
-    console.log('MANDE');
+    debugConsoleLog('MANDE');
 }
        
 
@@ -281,10 +287,10 @@ function enviarTriplaTopicosSubACliente(idPeticion){
 function procesarAltaCliente(request){
     //mandamos los 3 juntos xq una request admite una sola reply (es el protocolo de ZMQ)
 
-    console.log('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' + request);
+    debugConsoleLog('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' + request);
       
     
-    console.log('ENVIANDO DATOS ALTA');
+    debugConsoleLog('ENVIANDO DATOS ALTA');
     //let socketNuevoCliente = zmq.socket('req');
 
     // socketNuevoCliente.on('message', cbAsignaTopicoBroker);
@@ -293,5 +299,12 @@ function procesarAltaCliente(request){
 }
 
 
+
+
+function debugConsoleLog(message) {
+    if(DEBUG_MODE) {
+        console.log(message);
+    }
+}
 
 

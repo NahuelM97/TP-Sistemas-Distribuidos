@@ -84,7 +84,7 @@ function commandAyuda() {
     return '\n'+
     '   AYUDA \n'+
     '       Muestra lista de comandos.\n\n'+
-    '   ENVIAR <message> [-a | -u <user> | -g <group>] \n'+
+    '   ENVIAR [-a | -u <user> | -g <group>] <message>\n'+
     '       Envía un mensaje a todos, un usuario, o un grupo.\n\n'+
     '   GRUPO <group> \n'+
     '       Crea o se une a un grupo.\n\n'+
@@ -99,30 +99,63 @@ function commandAyuda() {
 function commandEnviar(input) {
     let inputArray = input.trim().split(' ');
 
-    switch(inputArray.length) {
-        case 0,1:
-            return tooFewArgumentsMessage();
+    // PARSER!
+    // WARNING: Puede ser un poco espagueti...
+
+    if( inputArray.length < 2 ){ // 0 o 1
+        return tooFewArgumentsMessage();
+    } 
+    
+    let inp1 = inputArray[1]; // Si hay un argumento, este sólo puede ser inputArray[1].
+    if( inp1[0] == "-" ){ // la primer letra es un guión
         
-        case 2: // No se especificó ningún guion-algo. Comportamiento por defecto: se asume -a
-            return EnviarMensajeAll(inputArray[1]);
-            
-        case 3:
-            if(inputArray[2].toUpperCase() != '-A') {
-                return invalidFormatMessage();
-            }
-            return EnviarMensajeAll(inputArray[1]);
+        // Caso -A
+        if ( inp1.toUpperCase() == "-A" ){
 
-        case 4:
-            if(inputArray[2].toUpperCase() == '-U') {
-                return EnviarMensajeUsuario(inputArray[1], inputArray[3]);
+            if(inputArray.length <= 2) {
+                return tooFewArgumentsMessage();
             }
-            if(inputArray[2].toUpperCase() == '-G') {
-                return EnviarMensajeGrupo(inputArray[1], inputArray[3]);
+            else {
+                inputArray.splice(0,2); // Borro el ENVIAR y el -A
+                return EnviarMensajeAll(inputArray); 
             }
-            return tooManyArgumentsMessage();
 
-        default:
-            return 
+        }
+
+        // Caso -G
+        if ( inp1.toUpperCase() == "-G" ){
+
+            if(inputArray.length <= 3) {
+                return tooFewArgumentsMessage();
+            }
+            else {
+                let grupo = inputArray[2];
+                inputArray.splice(0,3); // Borro el ENVIAR, -G y GROUPNAME
+                return EnviarMensajeGrupo(inputArray, grupo); 
+            }
+
+        }
+
+        // Caso -U
+        if ( inp1.toUpperCase() == "-U" ){
+
+            if(inputArray.length <= 3) {
+                return tooFewArgumentsMessage();
+            }
+            else {
+                let usuario = inputArray[2];
+                inputArray.splice(0,3); // Borro el ENVIAR, -U y USERNAME
+                return EnviarMensajeUsuario(inputArray,usuario); 
+            }
+
+        }
+
+        // Si no es ninguna, mal comando
+        return invalidFormatMessage();
+    }
+    else {
+        inputArray.splice(0,1); // Borro el ENVIAR
+        return EnviarMensajeAll(inputArray); 
     }
 }
 
@@ -136,6 +169,7 @@ function commandGroup(input) {
         return tooManyArgumentsMessage();
     }
     CLIENT.suscripcionAGrupo(inputArray[1]);
+    return 'Suscripción procesada correctamente: Grupo "' + inputArray[1] + '"';
 }
 
 function commandLogin(input) {
@@ -157,20 +191,24 @@ function commandLogin(input) {
         replStart.setPrompt('WASAP\\'+username+'>');
         isLogged = true;
         CLIENT.init(username); // Hace el alta del cliente en el sistema (Conexion)
+        return 'Bienvenido, ' + username;
     }
 }
 
 
 function EnviarMensajeAll(contenido) {
-    return CLIENT.EnviarMensajeAll(contenido);
+    let mensaje = contenido.join(" ");
+    return CLIENT.enviarMensajeAll(mensaje);
 }
 
 function EnviarMensajeUsuario(contenido,user) {
-    return CLIENT.EnviarMensajeUsuario(contenido,user);
+    let mensaje = contenido.join(" ");
+    return CLIENT.enviarMensajeUsuario(mensaje,user);
 }
 
 function EnviarMensajeGrupo(contenido,group) {
-    return CLIENT.EnviarMensajeGrupo(contenido,group);
+    let mensaje = contenido.join(" ");
+    return CLIENT.enviarMensajeGrupo(mensaje,group);
 }
 
 // -----------------------------------------------------------------------------

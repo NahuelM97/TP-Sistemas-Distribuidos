@@ -8,6 +8,11 @@ const globals = require('../Global/Globals');
 let config = require('./configCliente.json');
 let configClientNTP = require('../Global/configClientNTP.json');
 
+
+// DEBUG_MODE
+const DEBUG_MODE = false;
+
+
 //TODO LEER DE ALGUN LADO USERID
 let userId = 'DefaultUser'; // En teoría, nunca debería quedar DefaultUser. Sin embargo, dejar un default previene males peores.
 let coordinadorIP = config.coordinadorIP;
@@ -110,7 +115,8 @@ function socketSendMessage(socket, mensaje){
     if(mensaje != null)
     {   
         //pendingRequests[mensaje.idPeticion] = mensaje;     
-        console.log(`Se realiza envio: ${JSON.stringify(mensaje)}`);
+        
+        debugConsoleLog(`Se realiza envio: ${JSON.stringify(mensaje)}`);
         socket.send(mensaje);
     }
     else
@@ -120,24 +126,24 @@ function socketSendMessage(socket, mensaje){
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
-//                                CLIENT NTP                                        //                                        
+//                               <CLIENT NTP>                                       //                                        
 //////////////////////////////////////////////////////////////////////////////////////
 function enviarTiemposNTP(){
     let idIntervalo = setInterval(function () {
-      if (i--) {
-      //Calculo cada offset, en un intervalo determinado
-          let T1 = (new Date()).getTime();
-          let mensaje = {
-              t1: T1.toISOString(), 
-          }
-          client.write(JSON.stringify(mensaje));
-      } 
-      else {
-      //Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
-          clearInterval(idIntervalo);
-          console.log('Delay promedio: ' + offsetAvg + 'ms');
-          offsetHora = offsetAvg;
-      }
+        if (i--) {
+            //Calculo cada offset, en un intervalo determinado
+            let T1 = new Date();
+            let mensaje = {
+                t1: T1.toISOString(), 
+            }
+            client.write(JSON.stringify(mensaje));
+        } 
+        else {
+            //Luego de calcular los N offsets (fin del intervalo), asigno el offset del cliente
+            clearInterval(idIntervalo);
+            debugConsoleLog('Delay promedio: ' + offsetAvg + 'ms');
+            offsetHora = offsetAvg;
+        }
     }, INTERVAL_NTP);
   }
 
@@ -158,8 +164,8 @@ function initClientNTP(){
         offsetAvg += offsetDelNTP/total;
         
     
-        console.log('offset red:\t\t' + offsetDelNTP + ' ms');
-        console.log('---------------------------------------------------');
+        debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
+        debugConsoleLog('---------------------------------------------------');
     });
     
 }
@@ -174,7 +180,7 @@ function sincronizacionNTP(){
 
 
 //////////////////////////////////////////////////////////////////////////////////////
-//                                      NTP                                         //                                        
+//                                     </NTP>                                       //                                        
 //////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -240,10 +246,10 @@ function suscribirseABroker(brokers){
 function cbRespuestaCoordinador(replyJSON) { 
 
     
-    console.log('Recibi mensaje del coordinador');
+    debugConsoleLog('Recibi mensaje del coordinador');
 
     let reply = JSON.parse(replyJSON);
-    console.log("Received reply : [", reply, ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
+    debugConsoleLog("Received reply : [", reply, ']');// tiene el formato de un arreglo con 3 objetos que corresponden a 3 brokers
 
     if(reply && reply.exito) {
         switch (reply.accion) {
@@ -306,27 +312,42 @@ function cbProcesaMensajeRecibido(topic, message) {
         clientesUltimoHeartBeat[message.emisor] = message.fecha;
     }
     else {
-        console.log('Recibio mensaje de topico:', topic.toString(), ' - ', message.toString());
+        debugConsoleLog('Recibio mensaje de topico:', topic.toString(), ' - ', message.toString());
+        
+        mostrarMensajeInterfaz(getFormattedMessage(mensaje));
     }
-
 }
 
-
-// Obtiene el socket dado un ipPuerto
-function getSocketByURL(ipPuerto) {
-    if (!arregloSockets.hasOwnProperty(ipPuerto)) { //con este broker no hable nunca, lo agrego a mi lista de brokers
-        let nuevoSocket = zmq.socket('sub');
-
-        arregloSockets[ipPuerto.toString()] = nuevoSocket;
-        nuevoSocket.connect(`tcp://${ipPuerto.toString()}`);
-    }
-
-    return arregloSockets[ipPuerto];
+function getFormattedMessage(mensaje){
+    let formattedFecha = getFormattedDate(mensaje.fecha);
+    return `${formattedFecha} - ${mensaje.emisor}: ${mensaje.mensaje}`
 }
+
+function getFormattedDate(date){
+    let fecha = new Date(date);
+    let formattedDay = fecha.getDay().toString().length == 1 ? "0" + fecha.getDay() : fecha.getDay(); // Si el día no empieza en 0 se lo agrega
+    let formattedMonth = fecha.getMonth().toString().length == 1 ? "0" + fecha.getMonth() : fecha.getMonth(); // Si el mes no empieza en 0 se lo agrega
+    let formattedHours = fecha.getHours().toString().length == 1 ? "0" + fecha.getHours() : fecha.getHours();
+    let formattedMinutes = fecha.getMinutes().toString().length == 1 ? "0" + fecha.getMinutes() : fecha.getMinutes();
+    let formattedFecha = formattedDay + '/' + formattedMonth + '/' + fecha.getFullYear() + ' ' + formattedHours + ':' + formattedMinutes;
+    return formattedFecha;
+}
+
 
 // Precondicion: está registrado en clientesUltimoHeartbeat
 function isUserOnline(user) {
     getTimeNTP() - clientesUltimoHeartBeat[user].getTime() <=  ONLINE_TOLERANCE;
+}
+
+function debugConsoleLog(message) {
+    if(DEBUG_MODE) {
+        console.log(message);
+    }
+}
+
+// Importante: esto se muestra directamente en la interfaz de usuario. No debe llamarse a este método por nada que no sea algo que deba ser visto por el usuario
+function mostrarMensajeInterfaz(message) {
+    console.log(message);
 }
 
 
@@ -337,11 +358,13 @@ function isUserOnline(user) {
 / ****************************************************************************/
 
 function enviarMensajeAll(contenido) {
-    return intentaPublicar(contenido,MESSAGE_TOPIC_PREFIX+'/all');
+    intentaPublicar(contenido,MESSAGE_TOPIC_PREFIX+'/all');
+    return 'Mensaje de difusión enviado';
 }
 
 function enviarMensajeGrupo(contenido,idGrupo) {
-    return intentaPublicar(contenido,GROUP_TOPIC_PREFIX+'/'+idGrupo);
+    intentaPublicar(contenido,GROUP_TOPIC_PREFIX+'/'+idGrupo);
+    return 'Mensaje enviado al grupo ' + idGrupo;
 }
 
 function enviarMensajeUsuario(contenido,idUsuario) {
@@ -353,10 +376,9 @@ function enviarMensajeUsuario(contenido,idUsuario) {
     }
     else {
         intentaPublicar(contenido,MESSAGE_TOPIC_PREFIX+'/'+idUsuario);
-        return 'Mensaje enviado.';
+        return 'Mensaje enviado al usuario ' + idUsuario;
     }
 }
-
 
 function suscripcionAGrupo(idGrupo) {
     var suscripcionAGrupo = {
@@ -366,8 +388,8 @@ function suscripcionAGrupo(idGrupo) {
     };
     //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
     solicitarBrokerSubACoordinador(suscripcionAGrupo);
-    return 'Solicitud procesada correctamente.';
 }
+
 
 module.exports = {
 	// funciones
