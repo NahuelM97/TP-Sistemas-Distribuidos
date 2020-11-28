@@ -164,7 +164,7 @@ function procesaMensaje(topico, mensajeJSON) {
 
 		colaMensajesPorTopico[topico] = colaMensajes; // actualizamos la cola de mensajes de ese topico
 
-		publicarMensajeValido(topico, mensaje);
+		publicarMensajeValido(topico, mensajeJSON);
 
 
 	}
@@ -332,7 +332,7 @@ function enviarTiemposNTP(){
   }
 
 function initClientNTP(){
-	let client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
+	var client = net.createConnection(portNTP, NTP_IP, sincronizacionNTP);
     client.on('data', function (data) {
         
         let T4 = new Date(new Date().toISOString()).getTime();
