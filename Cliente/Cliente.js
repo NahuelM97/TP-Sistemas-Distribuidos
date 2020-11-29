@@ -10,8 +10,6 @@ let configClientNTP = require('../Global/configClientNTP.json');
 // DEBUG_MODE
 const DEBUG_MODE = false;
 
-
-//TODO LEER DE ALGUN LADO USERID
 let userId = 'DefaultUser'; // En teoría, nunca debería quedar DefaultUser. Sin embargo, dejar un default previene males peores.
 
 let coordinadorIP = config.coordinadorIP;
@@ -201,8 +199,10 @@ function getFormattedMessage(mensaje) {
 
 function getFormattedDate(date) {
     let fecha = new Date(date);
-    let formattedDay = fecha.getDay().toString().length == 1 ? "0" + fecha.getDay() : fecha.getDay(); // Si el día no empieza en 0 se lo agrega
-    let formattedMonth = fecha.getMonth().toString().length == 1 ? "0" + fecha.getMonth() : fecha.getMonth(); // Si el mes no empieza en 0 se lo agrega
+    let month = (fecha.getMonth() + 1).toString();
+    let day = fecha.getDate().toString();
+    let formattedDay = day.length == 1 ? "0" + day : day; // Si el día no empieza en 0 se lo agrega
+    let formattedMonth = month.length == 1 ? "0" + month : month; // Si el mes no empieza en 0 se lo agrega
     let formattedHours = fecha.getHours().toString().length == 1 ? "0" + fecha.getHours() : fecha.getHours();
     let formattedMinutes = fecha.getMinutes().toString().length == 1 ? "0" + fecha.getMinutes() : fecha.getMinutes();
     let formattedSeconds = fecha.getSeconds().toString().length == 1 ? "0" + fecha.getSeconds() : fecha.getSeconds();
@@ -210,6 +210,7 @@ function getFormattedDate(date) {
     let formattedFecha = formattedDay + '/' + formattedMonth + '/' + fecha.getFullYear() + ' ' + formattedHours + ':' + formattedMinutes + ':' + formattedSeconds + '.' + formattedMs;
     return formattedFecha;
 }
+
 
 
 // Precondicion: está registrado en clientesUltimoHeartbeat

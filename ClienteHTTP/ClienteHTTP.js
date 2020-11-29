@@ -23,6 +23,25 @@ $("#ddlIdBroker").change(function(){
 
 });
 
+$("#btnEliminarCola").click(function(){
+    let brokerId = $('#ddlIdBroker').val();
+    let topicId = $('#selectTopicoId').val();
+    let topicoEnc = encodeURIComponent(topicId);
+    let url = `http://localhost:${portServidorHTTP}/broker/${brokerId}/topics/${topicoEnc}`;
+    
+    // let url = `http://localhost:${portServidorHTTP}/`;
+    
+
+    var XHR = new XMLHttpRequest();
+    XHR.open("DELETE", url);
+    console.log(XHR);
+    XHR.send();
+    
+    $('#divListaMensajes').fadeOut();
+    $('#ulResultadoMensajes').empty();
+
+});
+
 function topicosError(){
     $("#cargandoTopicos").hide();
     alert("Error al recibir respuesta del servidor");
@@ -69,7 +88,8 @@ function GetMensajes() {
     //hacer un get al servidor
     let brokerId = $('#ddlIdBroker').val();
     let topicoId = $('#selectTopicoId').val();
-    let url = `http://localhost:9123/broker/${brokerId}/topics/${topicoId}`;
+    let topicoEnc = encodeURIComponent(topicoId);
+    let url = `http://localhost:9123/broker/${brokerId}/topics/${topicoEnc}`;
 
     var XHR = new XMLHttpRequest();
     XHR.addEventListener("load", cbMostrarMensajes);
@@ -78,7 +98,7 @@ function GetMensajes() {
 }
 
 function cbMostrarMensajes() {
-    console.log(this.responseText); //quE ES ESTE THIS: parece ser el XHR
+    console.log(this.responseText); 
 
     let response = JSON.parse(this.responseText);
 
@@ -88,13 +108,21 @@ function cbMostrarMensajes() {
 
 
     if (response.exito) {
-        response.resultados.mensajes.forEach(mensaje => {
-
+        if(response.resultados.mensajes.length == 0){
             let listElement = document.createElement("li");
-            let textoLi = getFormattedMessage(mensaje);
+            let textoLi = "No hay mensajes para mostrar en la cola."
             listElement.appendChild(document.createTextNode(textoLi));
             ulMensajes.appendChild(listElement);
-        });
+        } else{
+            response.resultados.mensajes.forEach(mensaje => {
+
+                let listElement = document.createElement("li");
+                let textoLi = getFormattedMessage(mensaje);
+                listElement.appendChild(document.createTextNode(textoLi));
+                ulMensajes.appendChild(listElement);
+            });
+        }
+        
 
 
     }
@@ -110,12 +138,14 @@ function getFormattedMessage(mensaje){
 }
 
 function getFormattedDate(date){
-    let fecha = new Date(date);
-    let formattedDay = fecha.getDay().toString().length == 1 ? "0" + fecha.getDay() : fecha.getDay(); // Si el día no empieza en 0 se lo agrega
-    let formattedMonth = fecha.getMonth().toString().length == 1 ? "0" + fecha.getMonth() : fecha.getMonth(); // Si el mes no empieza en 0 se lo agrega
-    let formattedHours = fecha.getHours().toString().length == 1 ? "0" + fecha.getHours() : fecha.getHours();
-    let formattedMinutes = fecha.getMinutes().toString().length == 1 ? "0" + fecha.getMinutes() : fecha.getMinutes();
-    let formattedFecha = formattedDay + '/' + formattedMonth + '/' + fecha.getFullYear() + ' ' + formattedHours + ':' + formattedMinutes;
+        let fecha = new Date(date);
+        let month = (fecha.getMonth() + 1).toString();
+        let day = fecha.getDate().toString();
+        let formattedDay = day.length == 1 ? "0" + day : day; // Si el día no empieza en 0 se lo agrega
+        let formattedMonth = month.length == 1 ? "0" + month : month; // Si el mes no empieza en 0 se lo agrega
+        let formattedHours = fecha.getHours().toString().length == 1 ? "0" + fecha.getHours() : fecha.getHours();
+        let formattedMinutes = fecha.getMinutes().toString().length == 1 ? "0" + fecha.getMinutes() : fecha.getMinutes();
+        let formattedFecha = formattedDay + '/' + formattedMonth + '/' + fecha.getFullYear() + ' ' + formattedHours + ':' + formattedMinutes;
     return formattedFecha;
 }
 

@@ -15,8 +15,6 @@ const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals'); // ????
 const DEBUG_MODE = true;
 
 
-
-// TODO - Sacar estos datos de un archivo JSON
 const brokerIp = config.ip;
 const BROKER_PUB_PORT = config.pubPort;
 const BROKER_SUB_PORT = config.subPort;
@@ -274,6 +272,7 @@ function cbRespondeSolicitud(requestJSON) {
 			}
 
 			debugConsoleLog(`Solicitaron borrar la cola de mensajes del topico ${topico}`);
+			repSocket.send(mensaje);
 			break;
 
 		default:

@@ -53,7 +53,7 @@ let contadorTopicosPorBroker = new Array(brokerIpPuerto.length).fill(0); // inic
     // - el value es un objeto compuesto por ejemplo: { requestDelCliente: request, idBroker: 123}
     // - el idBroker son los datos del broker que nos respondio
     // - el requestDelCliente es para saber con que ID responderle al cliente, y ademas para saber que puerto mandarle (pub o sub)
-var pendingRequests = {}; //TODO hacer esto porque no esta hecho
+var pendingRequests = {}; 
 // aca van las request en el orden en que llegaron tipo cola
 
 // ---------------------------------------- Main ------------------------------------------
@@ -262,11 +262,10 @@ function enviarTriplaTopicosSubACliente(idPeticion){
         puerto: brokerIpPuerto[pendingRequests[idPeticion].idBroker].puertoPub,
     }
     
-    //TODO abstraer
     let resultados = { 
             datosBroker: [ 
                 {
-                    topico: 'message/all', //TODO Poner en Global
+                    topico: 'message/all',
                     ip:  brokerIpPuerto[topicoIdBroker['message/all']].ip,
                     puerto: brokerIpPuerto[topicoIdBroker['message/all']].puertoPub,
                 },
