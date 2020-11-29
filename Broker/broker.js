@@ -12,7 +12,7 @@ const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals');
 
 
 // DEBUG_MODE
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 
 
