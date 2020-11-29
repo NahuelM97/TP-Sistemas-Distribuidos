@@ -13,6 +13,7 @@ const DEBUG_MODE = false;
 
 //TODO LEER DE ALGUN LADO USERID
 let userId = 'DefaultUser'; // En teoría, nunca debería quedar DefaultUser. Sin embargo, dejar un default previene males peores.
+
 let coordinadorIP = config.coordinadorIP;
 let coordinadorPuerto = config.coordinadorPuerto;
 
@@ -51,7 +52,7 @@ function init(myUsername) {// PP
 }
 
 function initClient() {
-    pub.initReqSocket(coordinadorIP,coordinadorPuerto);
+    pub.initReqSocket(coordinadorIP,coordinadorPuerto, suscribirseABroker);
     pub.initCbSubSocket(cbProcesaMensajeRecibido);
     var messageInicial = {
         idPeticion: globals.generateUUID(),
@@ -65,8 +66,16 @@ function initClient() {
     //Le envia al coordinador la peticion de ip:puerto para publicar heartbeats
     intentaPublicar("", HEARTBEAT_TOPIC_NAME);
     intervalHeartbeat = setInterval(cbIntervalHeartbeat, INTERVAL_ENVIO_HEARTBEAT);
-
 }
+
+function suscribirseABroker(brokers) {
+    brokers.forEach(broker => {
+        let ipPuerto = `${broker.ip}:${broker.puerto}`;
+        pub.conectarseParaSub(ipPuerto, broker.topico);
+        debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
+    })
+}
+
 
 function cbIntervalHeartbeat() {
     intentaPublicar("", HEARTBEAT_TOPIC_NAME);
@@ -127,19 +136,6 @@ function sincronizacionNTP() {
         debugConsoleLog('Sincronizacion de tiempo NTP Comenzada')
     }, INTERVAL_PERIODO);
 }
-
-//sector terminar bien las conexiones TCP
-process.on('SIGHUP', function () {
-    console.log('Cerrando broker');
-    endClientNTP();
-
-});
-
-process.on('SIGINT', function () {
-    console.log('Cerrando broker');
-    endClientNTP();
-
-});
 
 async function endClientNTP() {
     await clientNTP.end();
