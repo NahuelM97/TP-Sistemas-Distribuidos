@@ -117,7 +117,6 @@ function intentaPublicarMensajeDeCola(mensaje, topico) {
     //Si tengo la ubicacion del topico (broker) guardada, lo envio  
     console.log(topico.split('/')[1]); 
     if (topicoIpPuertoPub.hasOwnProperty(topico)) {
-        console.log('entra para publicar');
         publicaEnBroker(mensaje, topico);
         
     } else { //Si no lo tengo, se lo pido al coordinador
@@ -127,8 +126,6 @@ function intentaPublicarMensajeDeCola(mensaje, topico) {
             topico: topico
         }
         solicitarBrokerPubACoordinador(mensajeReq, mensaje);
-        console.log(`pide topico ${topico}`);
-        console.log(topicoIpPuertoPub);
     }
 }
 
@@ -151,7 +148,6 @@ function conectarseParaPub(ipPuerto) {
 //Dado un mensaje, realiza el envio por pubSocket
 function publicaEnBroker(mensaje, topico) {
     let mensajePub = [topico, JSON.stringify(mensaje)];
-    console.log(mensajePub);
     socketSendMessage(pubSocket, mensajePub);
 }
 
