@@ -13,32 +13,20 @@ const port = config.port;
 
 const globals = require('../Global/Globals');
 
+
+app.use((req, res, next) => {
+    res.append('Access-Control-Allow-Origin', '*');
+    res.append('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
+    //res.append ("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    next();
+});
+
 //PP: Aca se pone a escuchar
 app.listen(port, () => {
     console.log(`Servidor HTTP escuchando en http://localhost:${port}`)
 });
 
-
-
-
-
-
-
-
 ///////////////////////////////////////////////////
-
-
-//GET Lista Topicos
-//broker/${brokerId}/topics
-//  "exito": boolean,
-// “resultados”: {
-//                      “listaTopicos”: [t1, …, tn] 
-//                      },
-//             “error”: {
-//                          “codigo”: cod,
-//                          “mensaje”: “description”
-//                          }
-
 
 //GET Lista Topicos
 app.get('/broker/:brokerId/topics', (req, res) => {
@@ -59,8 +47,9 @@ app.get('/broker/:brokerId/topics', (req, res) => {
         reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
 
         reqSock.removeAllListeners('message');
-        reqSock.on('message', function(reply){ //TODO este on.('message' tiene que ejecutarse una sola vez o hacer muchos reqSock
+        reqSock.on('message', function(reply){ //este on.('message' tiene que ejecutarse una sola vez o hacer muchos reqSock
             res.header('Access-Control-Allow-Origin', '*');
+            console.log("Me respondio el broker");
             res.send(reply);
         });
         
@@ -83,30 +72,15 @@ app.get('/broker/:brokerId/topics', (req, res) => {
 
 })
 
-
-
-//GET Lista Mensajes
-// {
-//     "exito": boolean,  
-//     “resultados”: {
-//                     “mensajes”: [m1, …, mn] 
-//                  },
-//     “error”: {
-//                   “codigo”: cod,
-//                   “mensaje”: “description”
-//                   }
-// }
-
-
+//GET cola mensajes topico
 app.get('/broker/:brokerId/topics/:topic', (req, res) => {
 
+    //let reqDecoded = req.setEncoding('utf-8');
     let brokerId = req.params.brokerId;
-    let topic = req.params.topic;
+    let topic = decodeURIComponent(req.params.topic);
 
     console.log(`recibi -> ${req.url}`)
 
-
-    //TODO fijarse que topic sea valido
     if (!isNaN(brokerId)) {
         let solicitudBroker = {
             idPeticion: globals.generateUUID(),
@@ -118,7 +92,7 @@ app.get('/broker/:brokerId/topics/:topic', (req, res) => {
         reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
 
         reqSock.removeAllListeners('message');
-        reqSock.on('message', function(reply){ //TODO este on.('message' tiene que ejecutarse una sola vez o hacer muchos reqSock
+        reqSock.on('message', function(reply){ //este on.('message' tiene que ejecutarse una sola vez o hacer muchos reqSock
             res.header('Access-Control-Allow-Origin', '*');
             res.send(reply);
         });
@@ -141,23 +115,14 @@ app.get('/broker/:brokerId/topics/:topic', (req, res) => {
 
 })
 
-//DELETE Mensajes en cola para ese topico en ese broker particular
-// {
-//     "exito": boolean,
-//     “resultados”: {},
-//     “error”: {
-//                    “codigo”: cod,
-//                    “mensaje”: “description”
-//                    }
-// } 
+//DELETE Mensajes en cola para ese topico en ese broker particular 
+//
 app.delete('/broker/:brokerId/topics/:topic', (req, res) => {
     let brokerId = req.params.brokerId;
-    let topic = req.params.topic;
+    let topic = decodeURIComponent(req.params.topic);
 
-    console.log(`recibi -> ${req.url}`)
+    console.log(`recibi para borrar-> ${req.url}`);
 
-
-    //TODO fijarse que topic sea valido
     if (!isNaN(brokerId)) {
         //req con broker
         let solicitudBroker = {
@@ -169,7 +134,7 @@ app.delete('/broker/:brokerId/topics/:topic', (req, res) => {
         reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
         
         reqSock.removeAllListeners('message');
-        reqSock.on('message', function(reply){ //TODO este on.('message' tiene que ejecutarse una sola vez o hacer muchos reqSock
+        reqSock.on('message', function(reply){ //este on.('message' tiene que ejecutarse una sola vez o hacer muchos reqSock
             res.header('Access-Control-Allow-Origin', '*');
             res.send(reply);
         });

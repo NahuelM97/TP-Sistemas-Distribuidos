@@ -160,8 +160,7 @@ function enviarMensajePendiente(reply){
     let ipPuerto = `${broker.ip}:${broker.puerto}`;
     conectarseParaPub(ipPuerto);
 
-    //!!!MUY FEO: DEPENDE DE LA RED, HARDWARE TODO!!!!
-    //TODO
+    //TODO monitores
     setTimeout(() => {
 
         //conseguir el mensaje y topico que queriamos enviar
