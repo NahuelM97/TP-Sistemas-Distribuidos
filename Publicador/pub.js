@@ -7,6 +7,7 @@ var pubSocket = zmq.socket('pub')
 , subSocket = zmq.socket('sub');
 
 
+
 //Es un clave:valor
 //    - clave: idPeticion
 //    - valor: { idPeticion: globals.generateUUID(), accion: globals.COD_PUB, topico: topico }
@@ -38,8 +39,8 @@ const DEBUG_MODE = false;
 //30faab00-2339-4e57-928a-b78cabb4af6c
 
 function initReqSocket(ip,puerto){
-    reqSocket.connect(`tcp://${ip}:${puerto}`);
     reqSocket.on('message', cbRespuestaCoordinador);
+    reqSocket.connect(`tcp://${ip}:${puerto}`);
 }
 
 
@@ -126,7 +127,8 @@ function intentaPublicarMensajeDeCola(mensaje, topico) {
             topico: topico
         }
         solicitarBrokerPubACoordinador(mensajeReq, mensaje);
-
+        console.log(`pide topico ${topico}`);
+        console.log(topicoIpPuertoPub);
     }
 }
 
@@ -182,7 +184,6 @@ function enviarMensajePendiente(reply){
 
         topicoIpPuertoPub[topico] = ipPuerto;
         publicaEnBroker(mensaje, topico);
-
     }, 200);
 }
 
@@ -190,6 +191,8 @@ function solicitarBrokerSubACoordinador(mensajeReq) {
     pendingRequests[mensajeReq.idPeticion] = mensajeReq;
     socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
 }
+
+
 
 //////////////////////////////////////////////////////////////////////////////////////
 //                                    </PUB>                                        //                                        

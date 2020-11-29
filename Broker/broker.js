@@ -120,18 +120,24 @@ function validarTiempoExpiracionMensajes() {
 function initXPubSocket() {
 	// se conectan los suscriptores esperando recibir mensajes
 	xpubSocket.on('message', function (topic) {
-		let topicSinHeader = topic.toString().substring(1);
+		let topicString = topic.toString();
+		let topicSinHeader = topicString.substring(1);
 		if (colaMensajesPorTopico.hasOwnProperty(topicSinHeader)) { // el topico es valido QAOP
 			xsubSocket.send(topic); // el broker se suscribe a ese topico para poder recibir mensajes de sus publicadores 
-			debugConsoleLog(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
-
-			//le mandamos la cola del topico correspondiente
-			if(topicSinHeader.startsWith('message/') && topicSinHeader != 'message/all'){ //se suscribio un user a su propio topico
+			
+			if(topicString.charCodeAt(0) == 0){ // 0 -> desconexion | 1 -> conexion
+				debugConsoleLog(`Se desconecto un suscriptor del topico: ${topicSinHeader}`);
+			}
+			else if(topicSinHeader.startsWith('message/') && topicSinHeader != 'message/all'){ //se suscribio un user a su propio topico
+				debugConsoleLog(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
+				//le mandamos la cola del topico correspondiente
+				debugConsoleLog('cola de mensajes por topico: ');
+				debugConsoleLog(colaMensajesPorTopico);
 				colaMensajesPorTopico[topicSinHeader].forEach((message) => {
-					console.log(`topico ${topicSinHeader}`);
-					console.log(message);
-					intentaPublicar(message, topicSinHeader); // publica con el pubSocket
+					xpubSocket.send([topicSinHeader, JSON.stringify(message)]) // publicación directa, ya que este broker maneja ese topico
 				});
+				
+				
 			} //else{} es heartbeat,grupo o message/all
 		}
 		else { // le pidieron publicar en un topico que no administra
@@ -145,7 +151,7 @@ function initXPubSocket() {
 // inicializa el socket para mandar lo que se publica a los clientes
 function initXSubSocket() {
 	// se conectan los publicadores para que su mensaje sea redirigido a los suscriptores
-	xsubSocket.on('message', function (topic, message) {
+	xsubSocket.on('message', function (topic, message) {// cada vez que se publica un mensaje a este broker se llama a esto
 
 		if (colaMensajesPorTopico.hasOwnProperty(topic)) { // el topico es valido 
 			debugConsoleLog(` LLEGO MSJ -> - topico: ${topic}, mensaje: ${message}`);
