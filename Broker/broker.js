@@ -146,9 +146,12 @@ function initXSubSocket() {
 function procesaMensaje(topico, mensajeJSON) {
 	let colaMensajes = colaMensajesPorTopico[topico];
 	let mensaje = JSON.parse(mensajeJSON);
-
+	let topicoStr = topico.toString();
 	// Previene repetición cuando es un message/<usuario> (al enviar la cola message/all)
-	if ( ! colaMensajes.some(e => e.idPeticion === mensaje.idPeticion)) {
+	if (!topicoStr.startsWith('message/') || //es heartbeat
+		topicoStr == 'message/all' ||        //es message/all
+		  (! colaMensajes.some(	mensajeCola => ((mensajeCola.emisor == mensaje.emisor) 
+								&& (mensajeCola.fecha == mensaje.fecha))))) {
 		
 		// Si hay lugar, o si el nuevo tiene fecha más nueva que el más viejo (en cuyo caso lo desplazará)
 		if (colaMensajes.length < MAX_MENSAJES_COLA || mensaje.fecha > colaMensajes[0].fecha) { // el mensaje cumple la condicion de la cola
