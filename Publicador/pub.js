@@ -38,8 +38,8 @@ const DEBUG_MODE = false;
 //  - Sino, le envia una solicitud al coordinador para obtener esos datos
 //30faab00-2339-4e57-928a-b78cabb4af6c
 
-function initReqSocket(ip,puerto){
-    reqSocket.on('message', cbRespuestaCoordinador);
+function initReqSocket(ip,puerto, funcSuscribirseABroker){
+    reqSocket.on('message', function(replyJSON) { cbRespuestaCoordinador(replyJSON,funcSuscribirseABroker) });
     reqSocket.connect(`tcp://${ip}:${puerto}`);
 }
 
@@ -55,7 +55,7 @@ function initCbSubSocket(cbProcesaMensajeRecibido){
 
 //Con globals.COD1: Es porque quiero publicar en un topico por primera vez
 //Con globals.COD2: Se ejecuta cuando se vuelve a conectar o se conecta por primera vez el cliente (triple msj)
-function cbRespuestaCoordinador(replyJSON) {
+function cbRespuestaCoordinador(replyJSON, funcSuscribirseABroker) {
     debugConsoleLog('Recibi mensaje del coordinador');
 
     let reply = JSON.parse(replyJSON);
@@ -67,7 +67,7 @@ function cbRespuestaCoordinador(replyJSON) {
                 enviarMensajePendiente(reply);
                 break;
             case globals.COD_ALTA_SUB:
-                suscribirseABroker(reply.resultados.datosBroker);
+                funcSuscribirseABroker(reply.resultados.datosBroker);
                 break;
             default:
                 console.error("globals.CODIGO INVALIDO DE RESPUESTA EN CLIENTE");
@@ -78,19 +78,6 @@ function cbRespuestaCoordinador(replyJSON) {
         console.error("Respuesta sin exito: " + reply.error.codigo + ' - ' + reply.error.mensaje);
     }
 }
-
-// TODO: Adaptar nuevo formato
-function suscribirseABroker(brokers) {
-    brokers.forEach(broker => {
-        let ipPuerto = `${broker.ip}:${broker.puerto}`;
-        subSocket.connect(`tcp://${ipPuerto.toString()}`);
-        subSocket.subscribe(broker.topico);
-
-        debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
-
-    })
-}
-
 
 
 function intentaPublicarNuevoMensaje(userId, contenido, topico, fechaActual) {
@@ -143,6 +130,11 @@ function conectarseParaPub(ipPuerto) {
         pubSocket.connect(`tcp://${ipPuerto}`);
         conexiones.push(ipPuerto);
     }
+}
+
+function conectarseParaSub(ipPuerto, topico) {
+    subSocket.connect(`tcp://${ipPuerto.toString()}`);
+    subSocket.subscribe(topico);
 }
 
 //Dado un mensaje, realiza el envio por pubSocket
@@ -210,6 +202,7 @@ module.exports = {
     initReqSocket: initReqSocket,
     publicaEnBroker: publicaEnBroker,
     conectarseParaPub: conectarseParaPub,
+    conectarseParaSub: conectarseParaSub,
     intentaPublicarNuevoMensaje: intentaPublicarNuevoMensaje,
     intentaPublicarMensajeDeCola:intentaPublicarMensajeDeCola,
     solicitarBrokerSubACoordinador: solicitarBrokerSubACoordinador,

@@ -6,13 +6,13 @@ const pub = require('../Publicador/pub');
 
 let config = require('./configBroker.json');
 let configClientNTP = require('../Global/configClientNTP.json');
-const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals');
+const { COD_ERROR_TOPICO_INEXISTENTE } = require('../Global/Globals'); // ????
 
 
 
 
 // DEBUG_MODE
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 
 
 
@@ -23,7 +23,7 @@ const BROKER_SUB_PORT = config.subPort;
 
 const BROKER_REP_PORT = config.repPort;
 
-const MAX_MENSAJES_COLA = config.maxMensajesCola;  //15
+const MAX_MENSAJES_COLA = config.maxMensajesCola;  
 const MAX_DIF_TIEMPO_MENSAJE = 1000 * config.maxDifTiempoMensaje; // en milisegundos 300000
 
 
@@ -60,30 +60,6 @@ const coordinadorPuerto = config.coordinadorPuerto;
 //para verificar al momento de que se conecte alguien (para saber si es reconeccion)
 var msClientesUltimoHeartBeat = {};
 
-
-// TODO LIST:
-// -x Agregar la cola de envio de mensajes de cada tópico que se maneja
-// -x Gestionar la listaTopicos con las adiciones
-// -x Validar los mensajes entrantes, que cumplan con las condiciones de la cola de mensajes, y que sea un tópico válido del broker. else droppearlos
-// -x Hacer la subrutina que borre los mensajes que no cumplan con el tiempo que tienen que cumplir
-// -x Hacer la subrutina que borre los mensajes que no cumplan con la ocupación que tienen que cumplir
-// -x Establecer tiempo Y y cant de mensajes X para las colas de mensajes
-// - usar protocolo REQREP entre broker y coord para pedir ip+puerto del broker que maneje el topico heartbeat para poder suscribirse
-// - usar protocolo REQREP entre broker y coord para pedir ip+puerto de un broker que maneje un topico para la publicacion en los topicos message/<user>
-//   que se necesiten para mandar colas de mensajes
-// - mantener el estado de conexion de los clientes escuchando el topico heartbeat
-// - cuando un cliente se suscribe por primera vez a un topico o se reconecta, hay que mandarle las colas de mensajes de message/<user> y el message/all a
-//   su message/<user> con el protocolo PUBSUB
-// - sincronizar reloj con NTP
-// - responder solicitudes del server HTTP
-
-
-
-
-
-// TODO PROM:
-
-// - ?¿? mandar cola de mensajes de un grupo a los que se conectan por primera vez o si hay reconexiones.
 
 
 // PP
@@ -170,22 +146,25 @@ function initXSubSocket() {
 function procesaMensaje(topico, mensajeJSON) {
 	let colaMensajes = colaMensajesPorTopico[topico];
 	let mensaje = JSON.parse(mensajeJSON);
-	if (colaMensajes.length === 0 || mensaje.fecha > colaMensajes[0].fecha) { // el mensaje cumple la condicion de la cola
 
-		colaMensajes.push(mensaje);
-		colaMensajes.sort(compararMensajesPorFecha); // ordenar por fecha
+	// Previene repetición cuando es un message/<usuario> (al enviar la cola message/all)
+	if ( ! colaMensajes.some(e => e.idPeticion === mensaje.idPeticion)) {
+		
+		// Si hay lugar, o si el nuevo tiene fecha más nueva que el más viejo (en cuyo caso lo desplazará)
+		if (colaMensajes.length < MAX_MENSAJES_COLA || mensaje.fecha > colaMensajes[0].fecha) { // el mensaje cumple la condicion de la cola
 
-		if (colaMensajes.length > MAX_MENSAJES_COLA) {
-			colaMensajes.shift(); // saca al mensaje mas antiguo
+			colaMensajes.push(mensaje);
+			colaMensajes.sort(compararMensajesPorFecha); // ordenar por fecha
+
+			if (colaMensajes.length > MAX_MENSAJES_COLA) {
+				colaMensajes.shift(); // saca al mensaje mas antiguo
+			}
+			colaMensajesPorTopico[topico] = colaMensajes; // actualizamos la cola de mensajes de ese topico
+
+			publicarMensajeValido(topico, mensajeJSON);
 		}
-		colaMensajesPorTopico[topico] = colaMensajes; // actualizamos la cola de mensajes de ese topico
-
-		publicarMensajeValido(topico, mensajeJSON);
-
 
 	}
-	// else -> no era un mensaje valido segun las condiciones de la cola de mensajes
-
 }
 
 
@@ -305,10 +284,27 @@ function cbRespondeSolicitud(requestJSON) {
 }
 
 function initSocketsClienteReconectado(){
-	pub.initReqSocket(coordinadorIP,coordinadorPuerto);
+	pub.initReqSocket(coordinadorIP,coordinadorPuerto, suscribirseABroker);
 	pub.initCbSubSocket(cbProcesaMensajeRecibido);
 }
 
+function suscribirseABroker(brokers) {
+	let i = 0;
+	let found = false;
+    while(i < brokers.length && !found) {
+		let broker = brokers[i];
+
+		// Viene el tópico message/all y lo descartamos, sólo nos quedamos con el heartbeat
+		if (broker.topico == HEARTBEAT_TOPIC_NAME) {
+			let ipPuerto = `${broker.ip}:${broker.puerto}`;
+			pub.conectarseParaSub(ipPuerto, broker.topico);
+
+			debugConsoleLog("Me suscribo al heartbeat: " + broker.topico + " que está en IPPUERTO " + ipPuerto.toString());
+			found = true;
+		}
+		i++;
+    }
+}
 
 function cbProcesaMensajeRecibido(topic, messageJSON){ //te llegan heartbeats
 	let message = JSON.parse(messageJSON);
@@ -455,15 +451,12 @@ function sincronizacionNTP() {
 //sector cerrar bien las conexiones TCP
 
 process.on('SIGHUP', function () {
-	console.log('Cerrando broker');
 	endClientNTP();
 
 });
 
 process.on('SIGINT', function () {
-	console.log('Cerrando broker');
 	endClientNTP();
-
 });
 
 async function endClientNTP() {

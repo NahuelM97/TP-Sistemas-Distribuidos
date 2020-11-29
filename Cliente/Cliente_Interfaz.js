@@ -57,8 +57,7 @@ function writer(unparsedInput){
         return commandAyuda();
     }
     if(command == COMMAND_CHAR +'SALIR'){
-        CLIENT.endClientNTP();
-        return '¡Adiós!';
+        return commandSalir();
     }
 
     // comandos que requieren LOGIN
@@ -92,6 +91,17 @@ function commandAyuda() {
     '       Se conecta al sistema con un nombre de usuario.\n\n'+
     '   SALIR \n        Salir del sistema.\n\n'+
     '';
+}
+
+function commandSalir() {
+    if(isLogged){        
+        // Esto hace process.exit cuando el ntp termina
+        CLIENT.endClientNTP();
+    }
+    else {   
+        process.exit();
+    }
+    return "¡Adiós!";
 }
 
 // Procesa el input ENVIAR.
@@ -243,3 +253,13 @@ function tooFewArgumentsMessage() {
 // -----------------------------------------------------------------------------
 // </Mensajes de error>
 // -----------------------------------------------------------------------------
+
+
+// Eventos de CTRL+C y de cerrar ventana (X)
+process.on('SIGHUP', function () {
+    commandSalir();
+});
+
+process.on('SIGINT', function () {
+    commandSalir();
+});
