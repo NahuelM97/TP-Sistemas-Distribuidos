@@ -9,5 +9,5 @@
     "intervaloVerifExpMsj": 5,
     "coordinadorIP": "127.0.0.1",
     "coordinadorPuerto": 1234,
-	"toleranciaCliente": 30
+    "onlineTolerance": 30
 }
