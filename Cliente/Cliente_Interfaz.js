@@ -178,8 +178,8 @@ function commandGroup(input) {
     if(inputArray.length > 2) {
         return tooManyArgumentsMessage();
     }
-    CLIENT.suscripcionAGrupo(inputArray[1]);
-    return 'Suscripción procesada correctamente: Grupo "' + inputArray[1] + '"';
+    return CLIENT.suscripcionAGrupo(inputArray[1]);
+    
 }
 
 function commandLogin(input) {

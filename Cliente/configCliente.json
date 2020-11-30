@@ -2,6 +2,5 @@
     "coordinadorIP": "127.0.0.1",
     "coordinadorPuerto": 1234,
     "onlineTolerance": 30,
-    "intervalEnvioHeartbeat": 10,
-    "toleranciaCliente": 30
+    "intervalEnvioHeartbeat": 10
 }

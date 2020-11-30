@@ -21,7 +21,7 @@ const BROKER_SUB_PORT = config.subPort;
 
 const BROKER_REP_PORT = config.repPort;
 
-const MAX_MENSAJES_COLA = config.maxMensajesCola;  
+const MAX_MENSAJES_COLA = config.maxMensajesCola;
 const MAX_DIF_TIEMPO_MENSAJE = 1000 * config.maxDifTiempoMensaje; // en milisegundos 300000
 
 
@@ -45,9 +45,9 @@ const portNTP = configClientNTP.portNTP;
 const NTP_IP = configClientNTP.ipNTP;
 const INTERVAL_NTP = 1000 * configClientNTP.intervalNTP; // seconds 1
 const INTERVAL_PERIODO = 1000 * configClientNTP.intervalPeriodo;  //seconds 120
-const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
+const ONLINE_TOLERANCE = 1000 * config.onlineTolerance; // 30 segundos como máximo es el tiempo sin heartbeat en que un usuario sigue siendo considerado como online
 let i = configClientNTP.cantOffsetsNTP;
-const total = configClientNTP.cantOffsetsNTP;
+const TOTAL_ITERACIONES_NTP = configClientNTP.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
 let clientNTP;
@@ -64,7 +64,7 @@ var msClientesUltimoHeartBeat = {};
 
 {
 	// ambos sockets van a ser modo servidor, ya que los publicadores y suscriptores de nuestro sistema, los clientes, se conectaran al broker (y no al revés)
-	
+
 	initClientNTP();
 	initXSubSocket();
 	initXPubSocket();
@@ -98,11 +98,11 @@ function initXPubSocket() {
 		let topicSinHeader = topicString.substring(1);
 		if (colaMensajesPorTopico.hasOwnProperty(topicSinHeader)) { // el topico es valido QAOP
 			xsubSocket.send(topic); // el broker se suscribe a ese topico para poder recibir mensajes de sus publicadores 
-			
-			if(topicString.charCodeAt(0) == 0){ // 0 -> desconexion | 1 -> conexion
+
+			if (topicString.charCodeAt(0) == 0) { // 0 -> desconexion | 1 -> conexion
 				debugConsoleLog(`Se desconecto un suscriptor del topico: ${topicSinHeader}`);
 			}
-			else if(topicSinHeader.startsWith('message/') && topicSinHeader != 'message/all'){ //se suscribio un user a su propio topico
+			else if (topicSinHeader.startsWith('message/') && topicSinHeader != 'message/all') { //se suscribio un user a su propio topico
 				debugConsoleLog(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
 				//le mandamos la cola del topico correspondiente
 				debugConsoleLog('cola de mensajes por topico: ');
@@ -110,8 +110,8 @@ function initXPubSocket() {
 				colaMensajesPorTopico[topicSinHeader].forEach((message) => {
 					xpubSocket.send([topicSinHeader, JSON.stringify(message)]) // publicación directa, ya que este broker maneja ese topico
 				});
-				
-				
+
+
 			} //else{} es heartbeat,grupo o message/all
 		}
 		else { // le pidieron publicar en un topico que no administra
@@ -145,23 +145,24 @@ function procesaMensaje(topico, mensajeJSON) {
 	let colaMensajes = colaMensajesPorTopico[topico];
 	let mensaje = JSON.parse(mensajeJSON);
 	let topicoStr = topico.toString();
-	// Previene repetición cuando es un message/<usuario> (al enviar la cola message/all)
-	if (!topicoStr.startsWith('message/') || //es heartbeat
+	// Previene repetición cuando es un message/<usuario> (al enviar la cola message/all a su topico privado por reconexion)
+	if (topicoStr == 'heartbeat' || //es heartbeat
 		topicoStr == 'message/all' ||        //es message/all
-		  (! colaMensajes.some(	mensajeCola => ((mensajeCola.emisor == mensaje.emisor) 
-								&& (mensajeCola.fecha == mensaje.fecha))))) {
-		
+		topicoStr.startsWith('message/g_') || //es un mensaje para un grupo
+		(!colaMensajes.some(mensajeCola => ((mensajeCola.emisor == mensaje.emisor)
+			&& (mensajeCola.fecha == mensaje.fecha))))) {
+
 		// Si hay lugar, o si el nuevo tiene fecha más nueva que el más viejo (en cuyo caso lo desplazará)
 		if (colaMensajes.length < MAX_MENSAJES_COLA || mensaje.fecha > colaMensajes[0].fecha) { // el mensaje cumple la condicion de la cola
+			if (topicoStr != 'heartbeat' && !topicoStr.startsWith('message/g_')) { //si no es heartbeat ni grupo, meter a una cola
+				colaMensajes.push(mensaje);
+				colaMensajes.sort(compararMensajesPorFecha); // ordenar por fecha
 
-			colaMensajes.push(mensaje);
-			colaMensajes.sort(compararMensajesPorFecha); // ordenar por fecha
-
-			if (colaMensajes.length > MAX_MENSAJES_COLA) {
-				colaMensajes.shift(); // saca al mensaje mas antiguo
+				if (colaMensajes.length > MAX_MENSAJES_COLA) {
+					colaMensajes.shift(); // saca al mensaje mas antiguo
+				}
+				colaMensajesPorTopico[topico] = colaMensajes; // actualizamos la cola de mensajes de ese topico
 			}
-			colaMensajesPorTopico[topico] = colaMensajes; // actualizamos la cola de mensajes de ese topico
-
 			publicarMensajeValido(topico, mensajeJSON);
 		}
 
@@ -197,12 +198,12 @@ function cbRespondeSolicitud(requestJSON) {
 			if (!colaMensajesPorTopico.hasOwnProperty(topico)) { // le piden administrar a un topico que no administraba
 				agregarColaMensajes(topico);
 
-				if(topico == 'message/all'){ //suscribirme a heartbeat
+				if (topico == 'message/all') { //suscribirme a heartbeat
 
 					//solicito a coordinador el heartbeat para suscribirme
 					initSocketsClienteReconectado();
 
-					
+
 					var messageInicial = {
 						idPeticion: globals.generateUUID(),
 						accion: globals.COD_ALTA_SUB,
@@ -220,12 +221,15 @@ function cbRespondeSolicitud(requestJSON) {
 
 			repSocket.send(JSON.stringify(mensaje));
 
-			
+
 			break;
 
 		//SERVIDOR HTTP
 		case globals.COD_GET_TOPICOS:
-			let topicos = globals.getKeys(colaMensajesPorTopico);
+			// filtrado para evitar enviar al cliente HTTP las colas de grupos y heartbeat, que estan vacias
+			let topicos = globals.getKeys(colaMensajesPorTopico).filter(topico =>
+				(topico != 'heartbeat' && !topico.startsWith('message/g_'))
+			);
 
 			let resultados = {
 				listaTopicos: topicos // ['topico1','topico2',...]
@@ -285,15 +289,15 @@ function cbRespondeSolicitud(requestJSON) {
 
 }
 
-function initSocketsClienteReconectado(){
-	pub.initReqSocket(coordinadorIP,coordinadorPuerto, suscribirseABroker);
+function initSocketsClienteReconectado() {
+	pub.initReqSocket(coordinadorIP, coordinadorPuerto, suscribirseABroker);
 	pub.initCbSubSocket(cbProcesaMensajeRecibido);
 }
 
 function suscribirseABroker(brokers) {
 	let i = 0;
 	let found = false;
-    while(i < brokers.length && !found) {
+	while (i < brokers.length && !found) {
 		let broker = brokers[i];
 
 		// Viene el tópico message/all y lo descartamos, sólo nos quedamos con el heartbeat
@@ -305,34 +309,34 @@ function suscribirseABroker(brokers) {
 			found = true;
 		}
 		i++;
-    }
+	}
 }
 
-function cbProcesaMensajeRecibido(topic, messageJSON){ //te llegan heartbeats
+function cbProcesaMensajeRecibido(topic, messageJSON) { //te llegan heartbeats
 	let message = JSON.parse(messageJSON);
 	if (topic == HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
 		//actualizo el tiempo de conexion de alguien
-		if(!msClientesUltimoHeartBeat.hasOwnProperty(message.emisor)){ //es la primera vez que se conecta (enviarle solo message/all)
+		if (!msClientesUltimoHeartBeat.hasOwnProperty(message.emisor)) { //es la primera vez que se conecta (enviarle solo message/all)
 			msClientesUltimoHeartBeat[message.emisor] = new Date(message.fecha).getTime();
-			
-			colaMensajesPorTopico['message/all'].forEach((mensajeDeCola)=>{
-				intentaPublicar(mensajeDeCola, 'message/'+message.emisor);
+
+			colaMensajesPorTopico['message/all'].forEach((mensajeDeCola) => {
+				intentaPublicar(mensajeDeCola, 'message/' + message.emisor);
 			});
 		} else {
-			let msHeartbeatAnterior =  msClientesUltimoHeartBeat[message.emisor];
+			let msHeartbeatAnterior = msClientesUltimoHeartBeat[message.emisor];
 			let msHeartbeatNuevo = new Date(message.fecha).getTime();
 			msClientesUltimoHeartBeat[message.emisor] = msHeartbeatNuevo;
-			if(msHeartbeatNuevo - msHeartbeatAnterior > TOLERANCIA_CLIENTE){ //estaba desconectado (se volvio a conectar)
+			if (msHeartbeatNuevo - msHeartbeatAnterior > ONLINE_TOLERANCE) { //estaba desconectado (se volvio a conectar)
 				//mandar cola message all
 
-				colaMensajesPorTopico['message/all'].forEach((mensajeDeCola)=>{
-					intentaPublicar(mensajeDeCola, 'message/'+message.emisor);
+				colaMensajesPorTopico['message/all'].forEach((mensajeDeCola) => {
+					intentaPublicar(mensajeDeCola, 'message/' + message.emisor);
 				});
 
 			}
 		}
 		debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
-	} else { console.error("No puede llegar mensaje de un topico distinto de heartbeat, solo me suscribi a el")}
+	} else { console.error("No puede llegar mensaje de un topico distinto de heartbeat, solo me suscribi a el") }
 }
 
 
@@ -350,7 +354,7 @@ function cbProcesaMensajeRecibido(topic, messageJSON){ //te llegan heartbeats
 //  - Sino, le envia una solicitud al coordinador para obtener esos datos
 //30faab00-2339-4e57-928a-b78cabb4af6c
 function intentaPublicar(mensaje, topico) {
-	pub.intentaPublicarMensajeDeCola(mensaje,topico);
+	pub.intentaPublicarMensajeDeCola(mensaje, topico);
 }
 
 
@@ -385,16 +389,16 @@ function compararMensajesPorFecha(mensaje1, mensaje2) {
 //////////////////////////////////////////////////////////////////////////////////////
 
 //esta funcion devuelve el tiempo actual, ya corregido con el offset obtenido por NTP
-function getTimeNTP(){
-    let milisActual = new Date().getTime();
+function getTimeNTP() {
+	let milisActual = new Date().getTime();
 
-    // Add 3 days to the current date & time
-    //   I'd suggest using the calculated static value instead of doing inline math
-    //   I did it this way to simply show where the number came from
-    milisActual += offsetHora;
+	// Add 3 days to the current date & time
+	//   I'd suggest using the calculated static value instead of doing inline math
+	//   I did it this way to simply show where the number came from
+	milisActual += offsetHora;
 
-    // create a new Date object, using the adjusted time
-    return new Date(milisActual).toISOString();    
+	// create a new Date object, using the adjusted time
+	return new Date(milisActual).toISOString();
 }
 
 function enviarTiemposNTP() {
@@ -431,7 +435,7 @@ function initClientNTP() {
 		// calculamos delay de la red
 		// var delay = ((T2 - T1) + (T4 - T3)) / 2;
 		let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
-		offsetAvg += offsetDelNTP / total;
+		offsetAvg += offsetDelNTP / TOTAL_ITERACIONES_NTP;
 
 
 		debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');

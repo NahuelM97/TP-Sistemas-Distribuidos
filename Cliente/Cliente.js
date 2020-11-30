@@ -18,29 +18,32 @@ let coordinadorPuerto = config.coordinadorPuerto;
 
 //SERVER NTP
 const net = require('net');
-const { REPL_MODE_STRICT } = require('repl');
-const { Console } = require('console');
-const { initReq } = require('../Publicador/pub');
 
 const portNTP = configClientNTP.portNTP;
 const NTP_IP = configClientNTP.ipNTP;
 const INTERVAL_NTP = 1000 * configClientNTP.intervalNTP; // seconds 1
 const INTERVAL_PERIODO = 1000 * configClientNTP.intervalPeriodo;  //seconds 120
+
 const INTERVAL_ENVIO_HEARTBEAT = 1000 * config.intervalEnvioHeartbeat;
-const TOLERANCIA_CLIENTE = 1000 * config.toleranciaCliente;
-let i = total = configClientNTP.cantOffsetsNTP;
+const ONLINE_TOLERANCE = 1000 * config.onlineTolerance; // 30 segundos como máximo es el tiempo sin heartbeat en que un usuario sigue siendo considerado como online
+
+let i = configClientNTP.cantOffsetsNTP;
+const TOTAL_ITERACIONES_NTP = configClientNTP.cantOffsetsNTP;
 let offsetHora = 0;
 let offsetAvg = 0;
 let clientNTP;
 
+const TOPIC_DELIMITER = '/';
+const GROUP_ID_PREFIX = 'g_';
 const MESSAGE_TOPIC_PREFIX = 'message';
-const GROUP_TOPIC_PREFIX = 'group';
+const GROUP_TOPIC_PREFIX = MESSAGE_TOPIC_PREFIX + TOPIC_DELIMITER + GROUP_ID_PREFIX;
 const HEARTBEAT_TOPIC_NAME = 'heartbeat';
+const ID_ALL = 'all';
+const MESSAGE_ALL_TOPIC_NAME = MESSAGE_TOPIC_PREFIX + TOPIC_DELIMITER + ID_ALL;
 
-const ONLINE_TOLERANCE = 1000 * config.onlineTolerance; // 30 segundos como máximo es el tiempo sin heartbeat en que un usuario sigue siendo considerado como online
 
 var clientesUltimoHeartBeat = {};
-
+let gruposSuscrito = [];
 
 
 function init(myUsername) {// PP
@@ -50,12 +53,12 @@ function init(myUsername) {// PP
 }
 
 function initClient() {
-    pub.initReqSocket(coordinadorIP,coordinadorPuerto, suscribirseABroker);
+    pub.initReqSocket(coordinadorIP, coordinadorPuerto, suscribirseABroker);
     pub.initCbSubSocket(cbProcesaMensajeRecibido);
     var messageInicial = {
         idPeticion: globals.generateUUID(),
         accion: globals.COD_ALTA_SUB,
-        topico: `${MESSAGE_TOPIC_PREFIX}/${userId}`
+        topico: `${MESSAGE_TOPIC_PREFIX}${TOPIC_DELIMITER}${userId}`
     };
     //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
     pub.solicitarBrokerSubACoordinador(messageInicial);
@@ -71,6 +74,9 @@ function suscribirseABroker(brokers) {
         let ipPuerto = `${broker.ip}:${broker.puerto}`;
         pub.conectarseParaSub(ipPuerto, broker.topico);
         debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
+
+        if (broker.topico.startsWith(GROUP_TOPIC_PREFIX)) //si es grupo
+            gruposSuscrito.push(broker.topico.split(GROUP_ID_PREFIX)[1]) //1. message/g_hola 2.  g_hola 3.  hola
     })
 }
 
@@ -117,7 +123,7 @@ function initClientNTP() {
         // calculamos delay de la red
         // var delay = ((T2 - T1) + (T4 - T3)) / 2;
         let offsetDelNTP = ((T2 - T1) + (T3 - T4)) / 2;
-        offsetAvg += offsetDelNTP / total;
+        offsetAvg += offsetDelNTP / TOTAL_ITERACIONES_NTP;
 
 
         debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
@@ -170,7 +176,7 @@ function getTimeNTP() {
     let milisActual = new Date().getTime();
 
     milisActual += offsetHora;
-    
+
     return new Date(milisActual).toISOString();
 }
 
@@ -242,36 +248,49 @@ function mostrarMensajeInterfaz(message) {
 / ****************************************************************************/
 
 function enviarMensajeAll(contenido) {
-    intentaPublicar(contenido, MESSAGE_TOPIC_PREFIX + '/all');
+    intentaPublicar(contenido, MESSAGE_ALL_TOPIC_NAME);
     return 'Mensaje de difusión enviado';
 }
 
 function enviarMensajeGrupo(contenido, idGrupo) {
-    intentaPublicar(contenido, GROUP_TOPIC_PREFIX + '/' + idGrupo);
-    return 'Mensaje enviado al grupo ' + idGrupo;
+    let topico = GROUP_TOPIC_PREFIX + idGrupo;
+    if (gruposSuscrito.includes(idGrupo)) {
+        intentaPublicar(contenido, topico);
+        return 'Mensaje enviado al grupo ' + idGrupo;
+    }
+    else {
+        return `Debes unirte al grupo con el comando "grupo ${idGrupo}" antes de enviar mensajes`;
+    }
+
 }
 
 function enviarMensajeUsuario(contenido, idUsuario) {
-    if (!clientesUltimoHeartBeat.hasOwnProperty(idUsuario)) {//ETOP
+    if (!clientesUltimoHeartBeat.hasOwnProperty(idUsuario)) {
         return 'Se ha intentado enviar un mensaje a un usuario que no está registrado.';
     }
     if (!isUserOnline(idUsuario)) {
         return 'El usuario no está en línea.';
     }
     else {
-        intentaPublicar(contenido, MESSAGE_TOPIC_PREFIX + '/' + idUsuario);
+        intentaPublicar(contenido, MESSAGE_TOPIC_PREFIX + TOPIC_DELIMITER + idUsuario);
         return 'Mensaje enviado al usuario ' + idUsuario;
     }
 }
 
 function suscripcionAGrupo(idGrupo) {
-    var suscripcionAGrupo = {
-        idPeticion: globals.generateUUID(),
-        accion: globals.COD_ALTA_SUB,
-        topico: `${GROUP_TOPIC_PREFIX}/${idGrupo}`
-    };
-    //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
-    pub.solicitarBrokerSubACoordinador(suscripcionAGrupo);
+    if (gruposSuscrito.includes(idGrupo))
+        return `Ya se encuentra suscrito al grupo ${idGrupo}`;
+    else {
+        let suscripcionAGrupo = {
+            idPeticion: globals.generateUUID(),
+            accion: globals.COD_ALTA_SUB,
+            topico: `${GROUP_TOPIC_PREFIX}${idGrupo}`
+        };
+        //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
+        pub.solicitarBrokerSubACoordinador(suscripcionAGrupo);
+        return 'Suscripción procesada correctamente: Grupo "' + idGrupo + '"';
+    }
+
 }
 
 
