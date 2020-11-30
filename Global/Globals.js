@@ -32,11 +32,22 @@ const COD_ERROR_OPERACION_INEXISTENTE = 2
 //---------------------------</Codigos de error para REQREP>-----------------------------------------------
 
 
+//---------------------------<Prefijos para los topicos>---------------------------------------------------
+const TOPIC_DELIMITER = '/';
+const GROUP_ID_PREFIX = 'g_';
+const MESSAGE_TOPIC_PREFIX = 'message';
+const GROUP_TOPIC_PREFIX = MESSAGE_TOPIC_PREFIX + TOPIC_DELIMITER + GROUP_ID_PREFIX;
+const HEARTBEAT_TOPIC_NAME = 'heartbeat';
+const ID_ALL = 'all';
+const MESSAGE_ALL_TOPIC_NAME = MESSAGE_TOPIC_PREFIX + TOPIC_DELIMITER + ID_ALL;
+
+//---------------------------</Prefijos para los topicos>--------------------------------------------------
+
 
 
 
 // retorna una respuesta exitosa con los resultados especificados
-function generarRespuestaExitosa(accion,idPeticion,resultados) {
+function generarRespuestaExitosa(accion, idPeticion, resultados) {
 
 	let respuesta = {
 		exito: true,
@@ -44,7 +55,7 @@ function generarRespuestaExitosa(accion,idPeticion,resultados) {
 		idPeticion: idPeticion,
 		resultados: resultados
 	}
-	return respuesta; 
+	return respuesta;
 }
 
 
@@ -55,7 +66,7 @@ function generarRespuestaNoExitosa(accion, idPeticion, codigoError, mensajeError
 		exito: false,
 		accion: accion,
 		idPeticion: idPeticion,
-		error: 
+		error:
 		{
 			codigo: codigoError,
 			mensaje: mensajeError
@@ -80,7 +91,7 @@ function getCantKeys(keyvalue) {
 }
 
 // dado un arreglo asociativo keyvalue retorna sus keys (claves) que contiene
-function getKeys(keyvalue){
+function getKeys(keyvalue) {
 	return Object.keys(keyvalue);
 }
 
@@ -88,14 +99,23 @@ function getKeys(keyvalue){
 module.exports = {
 	// constantes
 	COD_PUB: COD_PUB,
-    COD_ALTA_SUB: COD_ALTA_SUB,
-    COD_ADD_TOPICO_BROKER: COD_ADD_TOPICO_BROKER,
-    COD_GET_TOPICOS: COD_GET_TOPICOS,
-    COD_GET_MENSAJES_COLA: COD_GET_MENSAJES_COLA,
+	COD_ALTA_SUB: COD_ALTA_SUB,
+	COD_ADD_TOPICO_BROKER: COD_ADD_TOPICO_BROKER,
+	COD_GET_TOPICOS: COD_GET_TOPICOS,
+	COD_GET_MENSAJES_COLA: COD_GET_MENSAJES_COLA,
 	COD_BORRAR_MENSAJES: COD_BORRAR_MENSAJES,
 
 	COD_ERROR_TOPICO_INEXISTENTE: COD_ERROR_TOPICO_INEXISTENTE,
 	COD_ERROR_OPERACION_INEXISTENTE: COD_ERROR_OPERACION_INEXISTENTE,
+
+
+	TOPIC_DELIMITER: TOPIC_DELIMITER,
+	GROUP_ID_PREFIX: GROUP_ID_PREFIX,
+	MESSAGE_TOPIC_PREFIX: MESSAGE_TOPIC_PREFIX,
+	GROUP_TOPIC_PREFIX: GROUP_TOPIC_PREFIX,
+	HEARTBEAT_TOPIC_NAME: HEARTBEAT_TOPIC_NAME,
+	ID_ALL: ID_ALL,
+	MESSAGE_ALL_TOPIC_NAME: MESSAGE_ALL_TOPIC_NAME,
 
 	// funciones
 	generarRespuestaExitosa: generarRespuestaExitosa,

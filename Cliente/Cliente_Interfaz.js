@@ -1,5 +1,7 @@
 const repl = require('repl');
 const CLIENT = require('./Cliente');
+const globals = require('../Global/Globals');
+const { GROUP_ID_PREFIX } = require('../Global/Globals');
 
 // Wide Area System of Asynchronous Posts
 
@@ -193,7 +195,7 @@ function commandLogin(input) {
     if(inputArray.length > 2) {
         return tooManyArgumentsMessage();
     }
-    if(inputArray[1].toUpperCase() == 'ALL') {
+    if(inputArray[1].toUpperCase() == globals.ID_ALL.toUpperCase() || inputArray[1].toLowerCase().startsWith(globals.GROUP_ID_PREFIX)) {//NECOP
         return invalidNameMessage();
     }
     else {
@@ -235,7 +237,7 @@ function notLoggedMessage() {
 }
 
 function invalidNameMessage() {
-    return 'Nombre inválido. Puede utilizar todos los nombres posibles del universo, excepto ese.';
+    return `Nombre inválido. Puede utilizar todos los nombres posibles del universo, excepto ${globals.ID_ALL} y cualquiera que empiece con ${globals.GROUP_ID_PREFIX}.`;
 }
 
 function invalidFormatMessage() {
