@@ -33,14 +33,6 @@ let offsetHora = 0;
 let offsetAvg = 0;
 let clientNTP;
 
-const TOPIC_DELIMITER = '/';
-const GROUP_ID_PREFIX = 'g_';
-const MESSAGE_TOPIC_PREFIX = 'message';
-const GROUP_TOPIC_PREFIX = MESSAGE_TOPIC_PREFIX + TOPIC_DELIMITER + GROUP_ID_PREFIX;
-const HEARTBEAT_TOPIC_NAME = 'heartbeat';
-const ID_ALL = 'all';
-const MESSAGE_ALL_TOPIC_NAME = MESSAGE_TOPIC_PREFIX + TOPIC_DELIMITER + ID_ALL;
-
 
 var clientesUltimoHeartBeat = {};
 let gruposSuscrito = [];
@@ -58,14 +50,14 @@ function initClient() {
     var messageInicial = {
         idPeticion: globals.generateUUID(),
         accion: globals.COD_ALTA_SUB,
-        topico: `${MESSAGE_TOPIC_PREFIX}${TOPIC_DELIMITER}${userId}`
+        topico: `${globals.MESSAGE_TOPIC_PREFIX}${globals.TOPIC_DELIMITER}${userId}`
     };
     //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
     pub.solicitarBrokerSubACoordinador(messageInicial);
 
 
     //Le envia al coordinador la peticion de ip:puerto para publicar heartbeats
-    intentaPublicar("", HEARTBEAT_TOPIC_NAME);
+    intentaPublicar("", globals.HEARTBEAT_TOPIC_NAME);
     intervalHeartbeat = setInterval(cbIntervalHeartbeat, INTERVAL_ENVIO_HEARTBEAT);
 }
 
@@ -75,14 +67,14 @@ function suscribirseABroker(brokers) {
         pub.conectarseParaSub(ipPuerto, broker.topico);
         debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
 
-        if (broker.topico.startsWith(GROUP_TOPIC_PREFIX)) //si es grupo
-            gruposSuscrito.push(broker.topico.split(GROUP_ID_PREFIX)[1]) //1. message/g_hola 2.  g_hola 3.  hola
+        if (broker.topico.startsWith(globals.GROUP_TOPIC_PREFIX)) //si es grupo
+            gruposSuscrito.push(broker.topico.split(globals.GROUP_ID_PREFIX)[1]) //1. message/g_hola 2.  g_hola 3.  hola
     })
 }
 
 
 function cbIntervalHeartbeat() {
-    intentaPublicar("", HEARTBEAT_TOPIC_NAME);
+    intentaPublicar("", globals.HEARTBEAT_TOPIC_NAME);
 }
 
 
@@ -186,7 +178,7 @@ function getTimeNTP() {
 // Llega un mensaje nuevo a un tópico al que estoy suscrito
 function cbProcesaMensajeRecibido(topic, messageJSON) {
     let message = JSON.parse(messageJSON);
-    if (topic == HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
+    if (topic == globals.HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
         //actualizo el tiempo de conexion de alguien
         clientesUltimoHeartBeat[message.emisor] = message.fecha;
         debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
@@ -248,12 +240,12 @@ function mostrarMensajeInterfaz(message) {
 / ****************************************************************************/
 
 function enviarMensajeAll(contenido) {
-    intentaPublicar(contenido, MESSAGE_ALL_TOPIC_NAME);
+    intentaPublicar(contenido, globals.MESSAGE_ALL_TOPIC_NAME);
     return 'Mensaje de difusión enviado';
 }
 
 function enviarMensajeGrupo(contenido, idGrupo) {
-    let topico = GROUP_TOPIC_PREFIX + idGrupo;
+    let topico = globals.GROUP_TOPIC_PREFIX + idGrupo;
     if (gruposSuscrito.includes(idGrupo)) {
         intentaPublicar(contenido, topico);
         return 'Mensaje enviado al grupo ' + idGrupo;
@@ -272,7 +264,7 @@ function enviarMensajeUsuario(contenido, idUsuario) {
         return 'El usuario no está en línea.';
     }
     else {
-        intentaPublicar(contenido, MESSAGE_TOPIC_PREFIX + TOPIC_DELIMITER + idUsuario);
+        intentaPublicar(contenido, globals.MESSAGE_TOPIC_PREFIX + globals.TOPIC_DELIMITER + idUsuario);
         return 'Mensaje enviado al usuario ' + idUsuario;
     }
 }
@@ -284,7 +276,7 @@ function suscripcionAGrupo(idGrupo) {
         let suscripcionAGrupo = {
             idPeticion: globals.generateUUID(),
             accion: globals.COD_ALTA_SUB,
-            topico: `${GROUP_TOPIC_PREFIX}${idGrupo}`
+            topico: `${globals.GROUP_TOPIC_PREFIX}${idGrupo}`
         };
         //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
         pub.solicitarBrokerSubACoordinador(suscripcionAGrupo);

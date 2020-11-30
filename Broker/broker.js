@@ -27,7 +27,6 @@ const MAX_DIF_TIEMPO_MENSAJE = 1000 * config.maxDifTiempoMensaje; // en milisegu
 
 const INTERVALO_VERIF_EXP_MSJ = 1000 * config.intervaloVerifExpMsj; // cada cuanto tiempo se verifica el tiempo de expiracion de los mensajes en la cola de mensajes
 
-const HEARTBEAT_TOPIC_NAME = 'heartbeat';
 
 // definimos 2 sockets: el que escucha todos los mensajes entrantes (subSocket), y el que va a enviar los mensajes a destino (pubSocket)
 const xsubSocket = zmq.socket('xsub'),  // el broker escucha a todos los publisher
@@ -102,7 +101,7 @@ function initXPubSocket() {
 			if (topicString.charCodeAt(0) == 0) { // 0 -> desconexion | 1 -> conexion
 				debugConsoleLog(`Se desconecto un suscriptor del topico: ${topicSinHeader}`);
 			}
-			else if (topicSinHeader.startsWith('message/') && topicSinHeader != 'message/all') { //se suscribio un user a su propio topico
+			else if (topicSinHeader.startsWith(globals.MESSAGE_TOPIC_PREFIX+ globals.TOPIC_DELIMITER) && topicSinHeader != globals.MESSAGE_ALL_TOPIC_NAME) { //se suscribio un user a su propio topico
 				debugConsoleLog(`Se conecto un suscriptor a topico: ${topicSinHeader}`);
 				//le mandamos la cola del topico correspondiente
 				debugConsoleLog('cola de mensajes por topico: ');
@@ -146,15 +145,15 @@ function procesaMensaje(topico, mensajeJSON) {
 	let mensaje = JSON.parse(mensajeJSON);
 	let topicoStr = topico.toString();
 	// Previene repetición cuando es un message/<usuario> (al enviar la cola message/all a su topico privado por reconexion)
-	if (topicoStr == 'heartbeat' || //es heartbeat
-		topicoStr == 'message/all' ||        //es message/all
-		topicoStr.startsWith('message/g_') || //es un mensaje para un grupo
+	if (topicoStr == globals.HEARTBEAT_TOPIC_NAME || //es heartbeat
+		topicoStr == globals.MESSAGE_ALL_TOPIC_NAME ||        //es message/all
+		topicoStr.startsWith(globals.GROUP_TOPIC_PREFIX) || //es un mensaje para un grupo
 		(!colaMensajes.some(mensajeCola => ((mensajeCola.emisor == mensaje.emisor)
 			&& (mensajeCola.fecha == mensaje.fecha))))) {
 
 		// Si hay lugar, o si el nuevo tiene fecha más nueva que el más viejo (en cuyo caso lo desplazará)
 		if (colaMensajes.length < MAX_MENSAJES_COLA || mensaje.fecha > colaMensajes[0].fecha) { // el mensaje cumple la condicion de la cola
-			if (topicoStr != 'heartbeat' && !topicoStr.startsWith('message/g_')) { //si no es heartbeat ni grupo, meter a una cola
+			if (topicoStr != globals.HEARTBEAT_TOPIC_NAME && !topicoStr.startsWith(globals.GROUP_TOPIC_PREFIX)) { //si no es heartbeat ni grupo, meter a una cola
 				colaMensajes.push(mensaje);
 				colaMensajes.sort(compararMensajesPorFecha); // ordenar por fecha
 
@@ -198,7 +197,7 @@ function cbRespondeSolicitud(requestJSON) {
 			if (!colaMensajesPorTopico.hasOwnProperty(topico)) { // le piden administrar a un topico que no administraba
 				agregarColaMensajes(topico);
 
-				if (topico == 'message/all') { //suscribirme a heartbeat
+				if (topico == globals.MESSAGE_ALL_TOPIC_NAME) { //suscribirme a heartbeat
 
 					//solicito a coordinador el heartbeat para suscribirme
 					initSocketsClienteReconectado();
@@ -207,7 +206,7 @@ function cbRespondeSolicitud(requestJSON) {
 					var messageInicial = {
 						idPeticion: globals.generateUUID(),
 						accion: globals.COD_ALTA_SUB,
-						topico: HEARTBEAT_TOPIC_NAME
+						topico: globals.HEARTBEAT_TOPIC_NAME
 					};
 
 					pub.solicitarBrokerSubACoordinador(messageInicial);
@@ -228,7 +227,7 @@ function cbRespondeSolicitud(requestJSON) {
 		case globals.COD_GET_TOPICOS:
 			// filtrado para evitar enviar al cliente HTTP las colas de grupos y heartbeat, que estan vacias
 			let topicos = globals.getKeys(colaMensajesPorTopico).filter(topico =>
-				(topico != 'heartbeat' && !topico.startsWith('message/g_'))
+				(topico != globals.HEARTBEAT_TOPIC_NAME && !topico.startsWith(globals.GROUP_TOPIC_PREFIX))
 			);
 
 			let resultados = {
@@ -301,7 +300,7 @@ function suscribirseABroker(brokers) {
 		let broker = brokers[i];
 
 		// Viene el tópico message/all y lo descartamos, sólo nos quedamos con el heartbeat
-		if (broker.topico == HEARTBEAT_TOPIC_NAME) {
+		if (broker.topico == globals.HEARTBEAT_TOPIC_NAME) {
 			let ipPuerto = `${broker.ip}:${broker.puerto}`;
 			pub.conectarseParaSub(ipPuerto, broker.topico);
 
@@ -314,13 +313,13 @@ function suscribirseABroker(brokers) {
 
 function cbProcesaMensajeRecibido(topic, messageJSON) { //te llegan heartbeats
 	let message = JSON.parse(messageJSON);
-	if (topic == HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
+	if (topic == globals.HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
 		//actualizo el tiempo de conexion de alguien
 		if (!msClientesUltimoHeartBeat.hasOwnProperty(message.emisor)) { //es la primera vez que se conecta (enviarle solo message/all)
 			msClientesUltimoHeartBeat[message.emisor] = new Date(message.fecha).getTime();
 
-			colaMensajesPorTopico['message/all'].forEach((mensajeDeCola) => {
-				intentaPublicar(mensajeDeCola, 'message/' + message.emisor);
+			colaMensajesPorTopico[globals.MESSAGE_ALL_TOPIC_NAME].forEach((mensajeDeCola) => {
+				intentaPublicar(mensajeDeCola, globals.MESSAGE_TOPIC_PREFIX+ globals.TOPIC_DELIMITER + message.emisor);
 			});
 		} else {
 			let msHeartbeatAnterior = msClientesUltimoHeartBeat[message.emisor];
@@ -329,8 +328,8 @@ function cbProcesaMensajeRecibido(topic, messageJSON) { //te llegan heartbeats
 			if (msHeartbeatNuevo - msHeartbeatAnterior > ONLINE_TOLERANCE) { //estaba desconectado (se volvio a conectar)
 				//mandar cola message all
 
-				colaMensajesPorTopico['message/all'].forEach((mensajeDeCola) => {
-					intentaPublicar(mensajeDeCola, 'message/' + message.emisor);
+				colaMensajesPorTopico[globals.MESSAGE_ALL_TOPIC_NAME].forEach((mensajeDeCola) => {
+					intentaPublicar(mensajeDeCola, globals.MESSAGE_TOPIC_PREFIX+ globals.TOPIC_DELIMITER + message.emisor);
 				});
 
 			}
@@ -452,7 +451,6 @@ function sincronizacionNTP() {
 		debugConsoleLog('Sincronizacion de tiempo NTP Comenzada')
 	}, INTERVAL_PERIODO);
 }
-
 
 //sector cerrar bien las conexiones TCP
 
