@@ -127,7 +127,6 @@ function initXSubSocket() {
 	xsubSocket.on('message', function (topic, message) {// cada vez que se publica un mensaje a este broker se llama a esto
 
 		if (colaMensajesPorTopico.hasOwnProperty(topic)) { // el topico es valido 
-			debugConsoleLog(` LLEGO MSJ -> - topico: ${topic}, mensaje: ${message}`);
 			procesaMensaje(topic, message);
 		}
 		else {

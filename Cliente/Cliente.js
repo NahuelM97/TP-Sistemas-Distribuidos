@@ -1,5 +1,3 @@
-
-
 const globals = require('../Global/Globals');
 const pub = require('../Publicador/pub');
 
@@ -10,7 +8,7 @@ let configClientNTP = require('../Global/configClientNTP.json');
 // DEBUG_MODE
 const DEBUG_MODE = false;
 
-let userId = 'DefaultUser'; // En teoría, nunca debería quedar DefaultUser. Sin embargo, dejar un default previene males peores.
+let userId = 'DefaultUser'; // En teoría, nunca debería quedar DefaultUser. Se deja por las dudas.
 
 let coordinadorIP = config.coordinadorIP;
 let coordinadorPuerto = config.coordinadorPuerto;
@@ -241,7 +239,7 @@ function mostrarMensajeInterfaz(message) {
 
 function enviarMensajeAll(contenido) {
     intentaPublicar(contenido, globals.MESSAGE_ALL_TOPIC_NAME);
-    return 'Mensaje de difusión enviado';
+    return 'Mensaje de difusión enviado.';
 }
 
 function enviarMensajeGrupo(contenido, idGrupo) {
@@ -251,7 +249,7 @@ function enviarMensajeGrupo(contenido, idGrupo) {
         return 'Mensaje enviado al grupo ' + idGrupo;
     }
     else {
-        return `Debes unirte al grupo con el comando "grupo ${idGrupo}" antes de enviar mensajes`;
+        return `Debes unirte o crear un grupo antes de enviar un mensaje a éste. Utiliza <grupo ${idGrupo}>.`;
     }
 
 }
@@ -285,6 +283,11 @@ function suscripcionAGrupo(idGrupo) {
 
 }
 
+// Envía los conectados 
+function getConectados() {
+    return clientesUltimoHeartBeat;
+}
+
 
 module.exports = {
     // funciones
@@ -292,6 +295,7 @@ module.exports = {
     enviarMensajeGrupo: enviarMensajeGrupo,
     enviarMensajeUsuario: enviarMensajeUsuario,
     suscripcionAGrupo: suscripcionAGrupo,
+    getConectados:getConectados,
     endClientNTP: endClientNTP,
     init: init
 }
