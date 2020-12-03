@@ -102,7 +102,6 @@ function intentaPublicarNuevoMensaje(userId, contenido, topico, fechaActual) {
 
 function intentaPublicarMensajeDeCola(mensaje, topico) {
     //Si tengo la ubicacion del topico (broker) guardada, lo envio  
-    console.log(topico.split('/')[1]); 
     if (topicoIpPuertoPub.hasOwnProperty(topico)) {
         publicaEnBroker(mensaje, topico);
         
@@ -159,6 +158,8 @@ function enviarMensajePendiente(reply){
     let broker = reply.resultados.datosBroker[0];
     let ipPuerto = `${broker.ip}:${broker.puerto}`;
     conectarseParaPub(ipPuerto);
+
+
 
     //TODO monitores
     setTimeout(() => {

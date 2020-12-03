@@ -333,7 +333,7 @@ function cbProcesaMensajeRecibido(topic, messageJSON) { //te llegan heartbeats
 
 			}
 		}
-		debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
+		//debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
 	} else { console.error("No puede llegar mensaje de un topico distinto de heartbeat, solo me suscribi a el") }
 }
 
@@ -436,8 +436,8 @@ function initClientNTP() {
 		offsetAvg += offsetDelNTP / TOTAL_ITERACIONES_NTP;
 
 
-		debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
-		debugConsoleLog('---------------------------------------------------');
+		//debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
+		//debugConsoleLog('---------------------------------------------------');
 	});
 
 }
