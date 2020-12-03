@@ -7,7 +7,7 @@ const globals = require('../Global/Globals');
 
 
 // DEBUG_MODE
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 
 
 // socket to talk to clients
@@ -15,7 +15,7 @@ var repSocket = zmq.socket('rep');
 var reqSocket = zmq.socket('req');
 
 // se usa solo para la inicializacion de el topico heartbeat y el topico message/all. Posteriormente no se utiliza de nuevo
-var reqSocketInit = zmq.socket('req');
+var reqSocketInit;
 
 let config = require('./configCoordinador.json');
 
@@ -59,7 +59,7 @@ var pendingRequests = {};
 // ---------------------------------------- Main ------------------------------------------
 // Se inicia la escucha 
 {
-    reqSocketInit.on('message', cbSocketInit);
+    
     reqSocket.on('message', cbBrokerAceptoTopico);
     repSocket.on('message', cbRespondeRequestDeCliente);
 
@@ -85,13 +85,13 @@ function obtieneBrokerInicial(topico){
     // - el requestDelCliente es para saber con que ID responderle al cliente, y ademas para saber que puerto mandarle (pub o sub)
     pendingRequests[requestAlBroker.idPeticion] = pendingRequest;
 
-
-
-
     let broker = brokerIpPuerto[idBrokerMin];
+
+    reqSocketInit = zmq.socket('req'); //usamos uno por vez por que si no hay problemas
+    reqSocketInit.on('message', cbSocketInit);
     reqSocketInit.connect(`tcp://${broker.ip}:${broker.puertoRep}`); 
     reqSocketInit.send(JSON.stringify(requestAlBroker));
-
+   
     
     debugConsoleLog('MANDE');
 
@@ -101,6 +101,7 @@ function obtieneBrokerInicial(topico){
 // asignamos los topicos heartbeat y message/all antes de empezar a atender request
 function cbSocketInit(responseJSON) {
     //Cuando el broker responde la solicitud de creacion del topico
+    reqSocketInit.close();
     let response = JSON.parse(responseJSON); 
     
     
@@ -167,13 +168,14 @@ function cbRespondeRequestDeCliente(requestJSON) { //un cliente quiere saber don
             procesarSolicitudPublicacion(request) // TODO 
             break;
         case globals.COD_ALTA_SUB:
-            procesarAltaCliente(request);
+            procesarSolicitudTopicoSub(request);
             break;
         default:
             console.error("ERROR 4503: codigo binario no binario llegad esperado invalido de operacion en la solicitud");
         //algo salio mal esto no tendria que estar aca.
     }
-    debugConsoleLog("Received request: [", request, "]");
+    debugConsoleLog("Received request: ");
+    debugConsoleLog(request);
 }
 
 
@@ -256,7 +258,7 @@ function procesarSolicitudPublicacion(request){
 // - cada vez que alguien se une a/crea un grupo
 // - cuando un broker quiere suscribirse a heartbeat
 function enviarTriplaTopicosSubACliente(idPeticion){
-    let brokerUser = {
+    let brokerTopicoPedido = {
         topico: pendingRequests[idPeticion].requestDelCliente.topico,
         ip:  brokerIpPuerto[pendingRequests[idPeticion].idBroker].ip,
         puerto: brokerIpPuerto[pendingRequests[idPeticion].idBroker].puertoPub,
@@ -277,7 +279,7 @@ function enviarTriplaTopicosSubACliente(idPeticion){
             ],
      }    
 
-    resultados.datosBroker[2] = brokerUser;
+    resultados.datosBroker[2] = brokerTopicoPedido;
 
     
     let respuesta = globals.generarRespuestaExitosa(COD_ALTA_SUB, idPeticion, resultados)
@@ -285,17 +287,25 @@ function enviarTriplaTopicosSubACliente(idPeticion){
     
 }
 
-function procesarAltaCliente(request){
+
+//ante una solicitud devuelve los brokers que atienden los topicos message/all, heartbeat, y el solicitado en la request
+function procesarSolicitudTopicoSub(request){
     //mandamos los 3 juntos xq una request admite una sola reply (es el protocolo de ZMQ)
 
     debugConsoleLog('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' + request);
-      
-    
     debugConsoleLog('ENVIANDO DATOS ALTA');
-    //let socketNuevoCliente = zmq.socket('req');
 
-    // socketNuevoCliente.on('message', cbAsignaTopicoBroker);
-    enviarAsignacionTopicoBroker(request);
+    if(topicoIdBroker.hasOwnProperty(request.topico)){ //caso el topico ya esta asignado, envio directo
+        let pendingRequest = {
+            requestDelCliente: request,
+            idBroker: topicoIdBroker[request.topico],
+        }
+
+        pendingRequests[request.idPeticion] = pendingRequest;
+        enviarTriplaTopicosSubACliente(request.idPeticion);
+    }
+    else
+        enviarAsignacionTopicoBroker(request);//caso el topico no esta asignado, envio al broker primero
 
 }
 
