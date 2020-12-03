@@ -288,7 +288,7 @@ function suscripcionAGrupo(idGrupo) {
 
 // Envía los conectados 
 function getConectados() {
-    return clientesUltimoHeartBeat;
+    return globals.getKeys(clientesUltimoHeartBeat).filter((user) => isUserOnline(user));
 }
 
 
