@@ -3,10 +3,15 @@ const CLIENT = require('./Cliente');
 const globals = require('../Global/Globals');
 const { GROUP_ID_PREFIX } = require('../Global/Globals');
 
-// Wide Area System of Asynchronous Posts
 
 const COMMAND_CHAR = '';
 
+const COMMAND_SEND = 'ENVIAR';
+const COMMAND_LOGIN = 'LOGIN';
+const COMMAND_HELP = 'AYUDA';
+const COMMAND_QUIT = 'SALIR';
+const COMMAND_GROUP = 'GRUPO';
+const COMMAND_ONLINE = 'CONECTADOS'; // Online u onlines? Creo que no tiene plural
 
 var isLogged = false;
 var username;
@@ -29,7 +34,7 @@ let replStart;
     console.log('');
     console.log('');
     console.log('');
-    console.log('Bienvenido, escriba ' + COMMAND_CHAR +'ayuda para ver los comandos o '+ COMMAND_CHAR +'salir para salir.');
+    console.log('Bienvenido, escriba <' + COMMAND_CHAR +'ayuda> para ver los comandos o <'+ COMMAND_CHAR +'salir> para salir.');
     console.log('');
     console.log('');
     console.log('');
@@ -52,28 +57,34 @@ function writer(unparsedInput){
     let input = unparsedInput.toString().replace('\n','').toUpperCase().trim();
     let command = input.split(' ')[0];
     
-    if(command == COMMAND_CHAR +'LOGIN'){
+    if(command == COMMAND_CHAR + COMMAND_LOGIN){
         return commandLogin(inputSinProcesar);
     }
-    if(command == COMMAND_CHAR +'AYUDA' || command == COMMAND_CHAR +'H'){ // Comandos de ayuda: Ayuda o H
+    if(command == COMMAND_CHAR + COMMAND_HELP){
         return commandAyuda();
     }
-    if(command == COMMAND_CHAR +'SALIR'){
+    if(command == COMMAND_CHAR + COMMAND_QUIT){
         return commandSalir();
     }
 
     // comandos que requieren LOGIN
-    if(command == COMMAND_CHAR +'ENVIAR'){
+    if(command == COMMAND_CHAR + COMMAND_SEND){
         if(!isLogged) {
             return notLoggedMessage();
         }
         return commandEnviar(inputSinProcesar);
     }
-    if(command == COMMAND_CHAR +'GRUPO'){
+    if(command == COMMAND_CHAR + COMMAND_GROUP){
         if(!isLogged) {
             return notLoggedMessage();
         }
         return commandGroup(inputSinProcesar);
+    }
+    if(command == COMMAND_CHAR + COMMAND_ONLINE){
+        if(!isLogged) {
+            return notLoggedMessage();
+        }
+        return commandConectados();
     }
 
     return "No sé como interpretar este comando: " + inputSinProcesar;
@@ -83,15 +94,24 @@ function writer(unparsedInput){
 // Procesa el input AYUDA. Muestra ayuda al usuario
 function commandAyuda() {
     return '\n'+
-    '   AYUDA \n'+
+
+    '   '+COMMAND_HELP+' \n'+
     '       Muestra lista de comandos.\n\n'+
-    '   ENVIAR [-a | -u <user> | -g <group>] <message>\n'+
+
+    '   '+COMMAND_ONLINE+' \n'+
+    '       Muestra lista de usuarios conectados.\n\n'+
+
+    '   '+COMMAND_SEND+' [-a | -u <user> | -g <group>] <message>\n'+
     '       Envía un mensaje a todos, un usuario, o un grupo.\n\n'+
-    '   GRUPO <group> \n'+
+
+    '   '+COMMAND_GROUP+' <nombre> \n'+
     '       Crea o se une a un grupo.\n\n'+
-    '   LOGIN <username> \n'+
+
+    '   '+COMMAND_LOGIN+' <usuario> \n'+
     '       Se conecta al sistema con un nombre de usuario.\n\n'+
-    '   SALIR \n        Salir del sistema.\n\n'+
+
+    '   '+COMMAND_QUIT+' \n'+
+    '       Salir del sistema.\n\n'+
     '';
 }
 
@@ -187,7 +207,7 @@ function commandGroup(input) {
 function commandLogin(input) {
     let inputArray = input.trim().split(' ');
     if(isLogged) {
-        return 'Ya estás logueado, ' + username + '!';
+        return 'Ya estás logueado, ' + username + '! Utiliza ' + COMMAND_QUIT + ' para salir.';
     }
     if(inputArray.length < 2) {
         return tooFewArgumentsMessage();
@@ -205,6 +225,30 @@ function commandLogin(input) {
         CLIENT.init(username); // Hace el alta del cliente en el sistema (Conexion)
         return 'Bienvenido, ' + username;
     }
+}
+
+// Crea un grupo o, si ya existe, se une a él
+function commandConectados() {
+    let conectados = CLIENT.getConectados();
+    let conectadosSorted = conectados.sort();
+
+    if(globals.getCantKeys(conectados) == 1) {
+        // Tomó 2 minutos pero le da un poquito de variedad a la soledad
+        var m = [ "Parece que estás solo.", "No hay otros usuarios en línea.", "Sos el único conectado!"];
+        return '\n'+m[Math.floor(Math.random()*m.length)]+'\n';
+    }
+    else {
+        let mensajeFormateado = '\n\n'+
+        
+        'Actualmente hay ' + globals.getCantKeys(conectados) + ' usuarios en línea:\n';
+        
+        conectadosSorted.forEach(k => mensajeFormateado += '' + 
+        
+        '   - ' + k + '\n'
+        
+        );
+        return mensajeFormateado;
+    }    
 }
 
 
@@ -233,23 +277,23 @@ function EnviarMensajeGrupo(contenido,group) {
 // -----------------------------------------------------------------------------
 
 function notLoggedMessage() {
-    return 'Debe loguearse para utilizar el envío de mensajes. Utilice ' + COMMAND_CHAR + 'login para loguearse.';
+    return 'Debe loguearse para utilizar este comando. Utilice <' + COMMAND_CHAR + COMMAND_LOGIN + ' (username)> para loguearse.';
 }
 
 function invalidNameMessage() {
-    return `Nombre inválido. Puede utilizar todos los nombres posibles del universo, excepto ${globals.ID_ALL} y cualquiera que empiece con ${globals.GROUP_ID_PREFIX}.`;
+    return `Nombre inválido. No puede utilizar como nombre <${globals.ID_ALL}> ni cualquiera que empiece con <${globals.GROUP_ID_PREFIX}>.`;
 }
 
 function invalidFormatMessage() {
-    return 'Formato inválido. Utilice ' + COMMAND_CHAR + 'ayuda para ver los comandos.';
+    return 'Formato inválido. Utilice <' + COMMAND_CHAR + COMMAND_HELP + '> para ver los comandos.';
 }
 
 function tooManyArgumentsMessage() {
-    return 'Demasiados argumentos recibidos. Utilice ' + COMMAND_CHAR + 'ayuda para ver los comandos.';
+    return 'Demasiados argumentos especificados. Utilice <' + COMMAND_CHAR + COMMAND_HELP + '> para ver los comandos.';
 }
 
 function tooFewArgumentsMessage() {
-    return 'Debe especificar al menos un argumento. Utilice el comando ' + COMMAND_CHAR + 'ayuda para ver los comandos.';
+    return 'Debe especificar al menos un argumento. Utilice <' + COMMAND_CHAR + COMMAND_HELP + '> para ver los comandos.';
 }
 
 // -----------------------------------------------------------------------------

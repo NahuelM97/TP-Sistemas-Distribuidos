@@ -20,6 +20,7 @@ $("#btnSolicitarTopicos").click(function(){
 $("#ddlIdBroker").change(function(){
 
     $("#resultadoTopicos").fadeOut();
+    $("#divListaMensajes").fadeOut();
 
 });
 
