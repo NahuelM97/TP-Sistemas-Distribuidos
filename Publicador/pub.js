@@ -124,12 +124,42 @@ function solicitarBrokerPubACoordinador(mensajeReq, mensajePub) {
     socketSendMessage(reqSocket, JSON.stringify(mensajeReq));
 }
 
-function conectarseParaPub(ipPuerto) {
+// se conecta para publicar un mensaje pendiente si no es que ya estaba conectado a ese broker
+// luego publica el mensaje
+function conectarseParaPub(ipPuerto, reply) {
     if (!conexiones.includes(ipPuerto)) {
         pubSocket.connect(`tcp://${ipPuerto}`);
         conexiones.push(ipPuerto);
+
+        pubSocket.removeAllListeners('connect');
+        pubSocket.on('connect', function (fd, ep) {
+            pubPrimerMensaje(ipPuerto, reply);
+            pubSocket.unmonitor();
+        });
+
+        pubSocket.monitor(100, 0);
     }
+    else{
+        //conseguir el mensaje y topico que queriamos enviar
+        pubPrimerMensaje(ipPuerto, reply);
+    }
+        
 }
+
+
+// publica el primer mensaje al topico que fue solicitado en el pedido cuya respuesta es replyPedidoDePub
+function pubPrimerMensaje(ipPuerto, replyPedidoDePub){
+    let mensaje = pendingPublications[replyPedidoDePub.idPeticion];
+    let topico = pendingRequests[replyPedidoDePub.idPeticion].topico;
+    delete pendingPublications[replyPedidoDePub.idPeticion];
+    delete pendingRequests[replyPedidoDePub.idPeticion];
+
+    topicoIpPuertoPub[topico] = ipPuerto;
+    publicaEnBroker(mensaje, topico);
+}
+
+
+
 
 function conectarseParaSub(ipPuerto, topico) {
     subSocket.connect(`tcp://${ipPuerto.toString()}`);
@@ -157,22 +187,10 @@ function socketSendMessage(socket, mensaje) {
 function enviarMensajePendiente(reply){
     let broker = reply.resultados.datosBroker[0];
     let ipPuerto = `${broker.ip}:${broker.puerto}`;
-    conectarseParaPub(ipPuerto);
+    conectarseParaPub(ipPuerto, reply);
+    
 
-
-
-    //TODO monitores
-    setTimeout(() => {
-
-        //conseguir el mensaje y topico que queriamos enviar
-        let mensaje = pendingPublications[reply.idPeticion];
-        let topico = pendingRequests[reply.idPeticion].topico;
-        delete pendingPublications[reply.idPeticion];
-        delete pendingRequests[reply.idPeticion];
-
-        topicoIpPuertoPub[topico] = ipPuerto;
-        publicaEnBroker(mensaje, topico);
-    }, 200);
+    
 }
 
 function solicitarBrokerSubACoordinador(mensajeReq) {
