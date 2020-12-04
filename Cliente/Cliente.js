@@ -1,5 +1,5 @@
 const globals = require('../Global/Globals');
-const pub = require('../Publicador/pub');
+const commsCliente = require('../Publicador/commsCliente');
 
 let config = require('./configCliente.json');
 let configClientNTP = require('../Global/configClientNTP.json');
@@ -16,7 +16,7 @@ let coordinadorPuerto = config.coordinadorPuerto;
 
 //SERVER NTP
 const net = require('net');
-const { pendingPublications } = require('../Publicador/pub');
+const { pendingPublications } = require('../Publicador/commsCliente');
 
 const portNTP = configClientNTP.portNTP;
 const NTP_IP = configClientNTP.ipNTP;
@@ -44,15 +44,15 @@ function init(myUsername) {// PP
 }
 
 function initClient() {
-    pub.initReqSocket(coordinadorIP, coordinadorPuerto, suscribirseABroker);
-    pub.initCbSubSocket(cbProcesaMensajeRecibido);
+    commsCliente.initReqSocket(coordinadorIP, coordinadorPuerto, suscribirseABroker);
+    commsCliente.initCbSubSocket(cbProcesaMensajeRecibido);
     var messageInicial = {
         idPeticion: globals.generateUUID(),
         accion: globals.COD_ALTA_SUB,
         topico: `${globals.MESSAGE_TOPIC_PREFIX}${globals.TOPIC_DELIMITER}${userId}`
     };
     //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
-    pub.solicitarBrokerSubACoordinador(messageInicial);
+    commsCliente.solicitarBrokerSubACoordinador(messageInicial);
 
 
     //Le envia al coordinador la peticion de ip:puerto para publicar heartbeats
@@ -63,7 +63,7 @@ function initClient() {
 function suscribirseABroker(brokers) {
     brokers.forEach(broker => {
         let ipPuerto = `${broker.ip}:${broker.puerto}`;
-        pub.conectarseParaSub(ipPuerto, broker.topico);
+        commsCliente.conectarseParaSub(ipPuerto, broker.topico);
         debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
 
         if (broker.topico.startsWith(globals.GROUP_TOPIC_PREFIX)){ //si es grupo
@@ -155,7 +155,7 @@ async function endClientNTP() {
 //30faab00-2339-4e57-928a-b78cabb4af6c
 function intentaPublicar(contenido, topico) {
     //Si tengo la ubicacion del topico (broker) guardada, lo envio
-    pub.intentaPublicarNuevoMensaje(userId, contenido, topico, getTimeNTP());
+    commsCliente.intentaPublicarNuevoMensaje(userId, contenido, topico, getTimeNTP());
 }
 
 
@@ -280,7 +280,7 @@ function suscripcionAGrupo(idGrupo) {
         };
 
         //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
-        pub.solicitarBrokerSubACoordinador(suscripcionAGrupo);
+        commsCliente.solicitarBrokerSubACoordinador(suscripcionAGrupo);
         return 'Suscripción procesada correctamente: Grupo "' + idGrupo + '"';
     }
 
