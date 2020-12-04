@@ -5,7 +5,6 @@ let config = require('./configServidorHTTP.json');
 
 let brokerIpPuerto = config.brokerIpPuerto;
 
-let reqSock = zmq.socket('req');
 
 const express = require('express')
 const app = express()
@@ -42,7 +41,7 @@ app.get('/broker/:brokerId/topics', (req, res) => {
             topico: null,
 
         }
-
+        let reqSock = zmq.socket('req');
         
         reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
 
@@ -51,6 +50,7 @@ app.get('/broker/:brokerId/topics', (req, res) => {
             res.header('Access-Control-Allow-Origin', '*');
             console.log("Me respondio el broker");
             res.send(reply);
+            reqSock.close();
         });
         
         
@@ -88,13 +88,14 @@ app.get('/broker/:brokerId/topics/:topic', (req, res) => {
             topico: topic,
         }
 
-
+        let reqSock = zmq.socket('req');
         reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
 
         reqSock.removeAllListeners('message');
         reqSock.on('message', function(reply){ //este on.('message' tiene que ejecutarse una sola vez o hacer muchos reqSock
             res.header('Access-Control-Allow-Origin', '*');
             res.send(reply);
+            reqSock.close();
         });
 
         reqSock.send(JSON.stringify(solicitudBroker)); 
@@ -131,12 +132,14 @@ app.delete('/broker/:brokerId/topics/:topic', (req, res) => {
             topico: topic,
         }
 
+        let reqSock = zmq.socket('req');
         reqSock.connect(`tcp://${brokerIpPuerto[brokerId].ip}:${brokerIpPuerto[brokerId].puertoRep}`);
         
         reqSock.removeAllListeners('message');
         reqSock.on('message', function(reply){ //este on.('message' tiene que ejecutarse una sola vez o hacer muchos reqSock
             res.header('Access-Control-Allow-Origin', '*');
             res.send(reply);
+            reqSock.close();
         });
 
         reqSock.send(JSON.stringify(solicitudBroker));

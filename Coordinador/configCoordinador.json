@@ -4,7 +4,10 @@
     "brokerIpPuerto": [
         { "ip": "127.0.0.1", "puertoPub": 3000, "puertoSub": 3001, "puertoRep": 3002 },
 		  { "ip": "127.0.0.1", "puertoPub": 3004, "puertoSub": 3005, "puertoRep": 3006 },
-		  { "ip": "127.0.0.1", "puertoPub": 3008, "puertoSub": 3009, "puertoRep": 3010 }
+		  { "ip": "127.0.0.1", "puertoPub": 3008, "puertoSub": 3009, "puertoRep": 3010 },
+		  { "ip": "127.0.0.1", "puertoPub": 3012, "puertoSub": 3013, "puertoRep": 3014 },
+		  { "ip": "127.0.0.1", "puertoPub": 3016, "puertoSub": 3017, "puertoRep": 3018 }
+
     ]
     
 }
