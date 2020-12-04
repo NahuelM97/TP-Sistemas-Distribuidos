@@ -1,12 +1,12 @@
 const globals = require('../Global/Globals');
-const pub = require('../Publicador/pub');
+const commsCliente = require('../Publicador/commsCliente');
 
 let config = require('./configCliente.json');
 let configClientNTP = require('../Global/configClientNTP.json');
 
 
 // DEBUG_MODE
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 
 let userId = 'DefaultUser'; // En teoría, nunca debería quedar DefaultUser. Se deja por las dudas.
 
@@ -16,6 +16,7 @@ let coordinadorPuerto = config.coordinadorPuerto;
 
 //SERVER NTP
 const net = require('net');
+const { pendingPublications } = require('../Publicador/commsCliente');
 
 const portNTP = configClientNTP.portNTP;
 const NTP_IP = configClientNTP.ipNTP;
@@ -43,15 +44,15 @@ function init(myUsername) {// PP
 }
 
 function initClient() {
-    pub.initReqSocket(coordinadorIP, coordinadorPuerto, suscribirseABroker);
-    pub.initCbSubSocket(cbProcesaMensajeRecibido);
+    commsCliente.initReqSocket(coordinadorIP, coordinadorPuerto, suscribirseABroker);
+    commsCliente.initCbSubSocket(cbProcesaMensajeRecibido);
     var messageInicial = {
         idPeticion: globals.generateUUID(),
         accion: globals.COD_ALTA_SUB,
         topico: `${globals.MESSAGE_TOPIC_PREFIX}${globals.TOPIC_DELIMITER}${userId}`
     };
     //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
-    pub.solicitarBrokerSubACoordinador(messageInicial);
+    commsCliente.solicitarBrokerSubACoordinador(messageInicial);
 
 
     //Le envia al coordinador la peticion de ip:puerto para publicar heartbeats
@@ -62,11 +63,12 @@ function initClient() {
 function suscribirseABroker(brokers) {
     brokers.forEach(broker => {
         let ipPuerto = `${broker.ip}:${broker.puerto}`;
-        pub.conectarseParaSub(ipPuerto, broker.topico);
+        commsCliente.conectarseParaSub(ipPuerto, broker.topico);
         debugConsoleLog("Me suscribo a: " + broker.topico + " con IPPUERTO " + ipPuerto.toString());
 
-        if (broker.topico.startsWith(globals.GROUP_TOPIC_PREFIX)) //si es grupo
-            gruposSuscrito.push(broker.topico.split(globals.GROUP_ID_PREFIX)[1]) //1. message/g_hola 2.  g_hola 3.  hola
+        if (broker.topico.startsWith(globals.GROUP_TOPIC_PREFIX)){ //si es grupo
+            gruposSuscrito.push(broker.topico.split(globals.GROUP_TOPIC_PREFIX)[1]) //1. message/g_hola 2.  g_hola 3.  hola
+        }
     })
 }
 
@@ -116,8 +118,8 @@ function initClientNTP() {
         offsetAvg += offsetDelNTP / TOTAL_ITERACIONES_NTP;
 
 
-        debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
-        debugConsoleLog('---------------------------------------------------');
+        //debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
+        //debugConsoleLog('---------------------------------------------------');
     });
 
 }
@@ -153,7 +155,7 @@ async function endClientNTP() {
 //30faab00-2339-4e57-928a-b78cabb4af6c
 function intentaPublicar(contenido, topico) {
     //Si tengo la ubicacion del topico (broker) guardada, lo envio
-    pub.intentaPublicarNuevoMensaje(userId, contenido, topico, getTimeNTP());
+    commsCliente.intentaPublicarNuevoMensaje(userId, contenido, topico, getTimeNTP());
 }
 
 
@@ -179,7 +181,7 @@ function cbProcesaMensajeRecibido(topic, messageJSON) {
     if (topic == globals.HEARTBEAT_TOPIC_NAME) { // lo revisamos en todos para mayor flexibilidad
         //actualizo el tiempo de conexion de alguien
         clientesUltimoHeartBeat[message.emisor] = message.fecha;
-        debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
+        //debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
     }
     else {
         debugConsoleLog('Recibio mensaje de topico:', topic.toString(), ' - ', message.toString());
@@ -276,8 +278,9 @@ function suscripcionAGrupo(idGrupo) {
             accion: globals.COD_ALTA_SUB,
             topico: `${globals.GROUP_TOPIC_PREFIX}${idGrupo}`
         };
+
         //Lo que manda el cliente la primera vez, pidiendole los 3 topicos de alta(ip:puerto)
-        pub.solicitarBrokerSubACoordinador(suscripcionAGrupo);
+        commsCliente.solicitarBrokerSubACoordinador(suscripcionAGrupo);
         return 'Suscripción procesada correctamente: Grupo "' + idGrupo + '"';
     }
 
@@ -285,7 +288,7 @@ function suscripcionAGrupo(idGrupo) {
 
 // Envía los conectados 
 function getConectados() {
-    return clientesUltimoHeartBeat;
+    return globals.getKeys(clientesUltimoHeartBeat).filter((user) => isUserOnline(user));
 }
 
 

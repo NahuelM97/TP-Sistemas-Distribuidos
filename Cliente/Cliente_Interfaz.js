@@ -230,7 +230,7 @@ function commandLogin(input) {
 // Crea un grupo o, si ya existe, se une a él
 function commandConectados() {
     let conectados = CLIENT.getConectados();
-    let keysSorted = globals.getKeys(conectados).sort();
+    let conectadosSorted = conectados.sort();
 
     if(globals.getCantKeys(conectados) == 1) {
         // Tomó 2 minutos pero le da un poquito de variedad a la soledad
@@ -242,7 +242,7 @@ function commandConectados() {
         
         'Actualmente hay ' + globals.getCantKeys(conectados) + ' usuarios en línea:\n';
         
-        keysSorted.forEach(k => mensajeFormateado += '' + 
+        conectadosSorted.forEach(k => mensajeFormateado += '' + 
         
         '   - ' + k + '\n'
         

@@ -1,0 +1,13 @@
+{
+    "ip": "127.0.0.1",
+    "pubPort": 3004,
+    "subPort": 3005,
+    "repPort": 3006,
+    "reqPort": 3007,
+    "maxMensajesCola": 15,
+    "maxDifTiempoMensaje": 300,
+    "intervaloVerifExpMsj": 5,
+    "coordinadorIP": "127.0.0.1",
+    "coordinadorPuerto": 1234,
+    "onlineTolerance": 30
+}

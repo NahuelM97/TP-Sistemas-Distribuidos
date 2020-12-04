@@ -2,7 +2,7 @@
 const zmq = require('../zeromq/node_modules/zeromq');
 
 const globals = require('../Global/Globals');
-const pub = require('../Publicador/pub');
+const commsCliente = require('../Publicador/commsCliente');
 
 let config = require('./configBroker.json');
 let configClientNTP = require('../Global/configClientNTP.json');
@@ -208,7 +208,7 @@ function cbRespondeSolicitud(requestJSON) {
 						topico: globals.HEARTBEAT_TOPIC_NAME
 					};
 
-					pub.solicitarBrokerSubACoordinador(messageInicial);
+					commsCliente.solicitarBrokerSubACoordinador(messageInicial);
 				}
 
 				debugConsoleLog(`Asignaron el topico ${requestJSON}`);
@@ -288,8 +288,8 @@ function cbRespondeSolicitud(requestJSON) {
 }
 
 function initSocketsClienteReconectado() {
-	pub.initReqSocket(coordinadorIP, coordinadorPuerto, suscribirseABroker);
-	pub.initCbSubSocket(cbProcesaMensajeRecibido);
+	commsCliente.initReqSocket(coordinadorIP, coordinadorPuerto, suscribirseABroker);
+	commsCliente.initCbSubSocket(cbProcesaMensajeRecibido);
 }
 
 function suscribirseABroker(brokers) {
@@ -301,7 +301,7 @@ function suscribirseABroker(brokers) {
 		// Viene el tópico message/all y lo descartamos, sólo nos quedamos con el heartbeat
 		if (broker.topico == globals.HEARTBEAT_TOPIC_NAME) {
 			let ipPuerto = `${broker.ip}:${broker.puerto}`;
-			pub.conectarseParaSub(ipPuerto, broker.topico);
+			commsCliente.conectarseParaSub(ipPuerto, broker.topico);
 
 			debugConsoleLog("Me suscribo al heartbeat: " + broker.topico + " que está en IPPUERTO " + ipPuerto.toString());
 			found = true;
@@ -333,7 +333,7 @@ function cbProcesaMensajeRecibido(topic, messageJSON) { //te llegan heartbeats
 
 			}
 		}
-		debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
+		//debugConsoleLog(`Me llego un heartbeat  con fecha ${message.fecha} y de ${message.emisor}`)
 	} else { console.error("No puede llegar mensaje de un topico distinto de heartbeat, solo me suscribi a el") }
 }
 
@@ -352,7 +352,7 @@ function cbProcesaMensajeRecibido(topic, messageJSON) { //te llegan heartbeats
 //  - Sino, le envia una solicitud al coordinador para obtener esos datos
 //30faab00-2339-4e57-928a-b78cabb4af6c
 function intentaPublicar(mensaje, topico) {
-	pub.intentaPublicarMensajeDeCola(mensaje, topico);
+	commsCliente.intentaPublicarMensajeDeCola(mensaje, topico);
 }
 
 
@@ -436,8 +436,8 @@ function initClientNTP() {
 		offsetAvg += offsetDelNTP / TOTAL_ITERACIONES_NTP;
 
 
-		debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
-		debugConsoleLog('---------------------------------------------------');
+		//debugConsoleLog('offset red:\t\t' + offsetDelNTP + ' ms');
+		//debugConsoleLog('---------------------------------------------------');
 	});
 
 }

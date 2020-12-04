@@ -12,7 +12,6 @@ const DEBUG_MODE = true;
 
 // socket to talk to clients
 var repSocket = zmq.socket('rep');
-var reqSocket = zmq.socket('req');
 
 // se usa solo para la inicializacion de el topico heartbeat y el topico message/all. Posteriormente no se utiliza de nuevo
 var reqSocketInit;
@@ -60,7 +59,7 @@ var pendingRequests = {};
 // Se inicia la escucha 
 {
     
-    reqSocket.on('message', cbBrokerAceptoTopico);
+    
     repSocket.on('message', cbRespondeRequestDeCliente);
 
     obtieneBrokerInicial('heartbeat'); //engañosa, obtiene los 2 pero figura una sola
@@ -232,8 +231,14 @@ function enviarAsignacionTopicoBroker(request){
 
 
     let broker = brokerIpPuerto[idBrokerMin];
-    reqSocket.connect(`tcp://${broker.ip}:${broker.puertoRep}`); 
+
+    let reqSocket = zmq.socket('req');
+    reqSocket.on('message', cbBrokerAceptoTopico);
+
+    reqSocket.connect(`tcp://${broker.ip}:${broker.puertoRep}`);
     reqSocket.send(JSON.stringify(requestAlBroker));
+    
+    
     debugConsoleLog('MANDE');
 }
        
